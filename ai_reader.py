@@ -8,7 +8,7 @@ import httpx
 from typing import Optional
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-5-20250514"
 API_URL = "https://api.anthropic.com/v1/messages"
 
 
@@ -168,8 +168,14 @@ to a specific chart combination."""
             )
 
             if response.status_code != 200:
+                err_body = response.text
+                try:
+                    err_json = response.json()
+                    err_body = err_json.get("error", {}).get("message", err_body)
+                except Exception:
+                    pass
                 return {
-                    "error": f"AI API returned status {response.status_code}",
+                    "error": f"AI API error ({response.status_code}): {err_body}",
                     "sections": {},
                 }
 

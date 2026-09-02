@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jyotish — Vedic Birth Chart</title>
+  <meta name="description" content="Vedic Astrology (Jyotish) birth chart generator with AI-powered readings" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+Devanagari:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="container header-inner">
+      <div class="logo">
+        <span class="logo-icon">☉</span>
+        <div>
+          <h1>Jyotish</h1>
+          <p class="tagline">Vedic Birth Chart & AI-Powered Readings</p>
+        </div>
+      </div>
+      <button id="btn-new-chart" class="btn btn-ghost" style="display:none" onclick="handleReset()">
+        ← New Chart
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ══ INPUT FORM ══ -->
+    <section id="section-form">
+      <div class="card form-card">
+        <div class="form-header">
+          <span class="form-icon">🪷</span>
+          <div>
+            <h2>Enter Birth Details</h2>
+            <p>Accurate birth time is essential for precise Lagna and house calculations.</p>
+          </div>
+        </div>
+        <form id="birth-form" onsubmit="handleSubmit(event)">
+          <div class="field full">
+            <label for="inp-name">Full Name</label>
+            <input id="inp-name" type="text" placeholder="Enter your name" required />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="inp-date">Date of Birth</label>
+              <input id="inp-date" type="date" required />
+            </div>
+            <div class="field">
+              <label for="inp-time">Time of Birth</label>
+              <input id="inp-time" type="time" required />
+            </div>
+          </div>
+          <div class="field full">
+            <label for="inp-city">Birth City</label>
+            <input id="inp-city" type="text" placeholder="e.g. Bengaluru, Delhi, Mumbai" required />
+            <span class="field-hint">City is geocoded for latitude, longitude & timezone automatically.</span>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="btn-submit">
+              <span class="btn-label">Generate Kundali</span>
+              <span class="btn-icon">→</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ══ LOADING ══ -->
+    <section id="section-loading" class="hidden">
+      <div class="loading-box">
+        <div class="orbit-spinner">
+          <div class="orbit"></div>
+          <div class="orbit"></div>
+          <div class="orbit"></div>
+        </div>
+        <p class="loading-title">Computing planetary positions…</p>
+        <p class="loading-sub">Calculating sidereal longitudes with Lahiri Ayanamsa</p>
+      </div>
+    </section>
+
+    <!-- ══ ERROR ══ -->
+    <section id="section-error" class="hidden">
+      <div class="error-box">
+        <span class="error-icon">⚠</span>
+        <p id="error-message"></p>
+        <button class="btn btn-ghost" onclick="handleReset()">Try Again</button>
+      </div>
+    </section>
+
+    <!-- ══ RESULTS ══ -->
+    <section id="section-results" class="hidden">
+      <!-- Results header -->
+      <div id="results-header" class="results-header"></div>
+
+      <!-- Tabs -->
+      <nav class="tabs" id="tabs-nav"></nav>
+
+      <!-- Tab panels -->
+      <div id="tab-content"></div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Jyotish — Vedic Astrology Engine &middot; Swiss Ephemeris &middot; Lahiri Ayanamsa &middot; Whole Sign Houses</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

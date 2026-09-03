@@ -161,7 +161,7 @@ to a specific chart combination."""
                     "model": MODEL,
                     "max_tokens": 16000,
                     "thinking": {
-                        "type": "enabled",
+                        "type": "adaptive",
                         "budget_tokens": 10000,
                     },
                     "system": system_prompt,

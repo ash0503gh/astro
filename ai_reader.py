@@ -159,8 +159,7 @@ to a specific chart combination."""
                 },
                 json={
                     "model": MODEL,
-                    "max_tokens": 8192,
-                    "temperature": 0.7,
+                    "max_tokens": 4096,
                     "system": system_prompt,
                     "messages": [
                         {"role": "user", "content": chart_text}

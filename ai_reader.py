@@ -159,7 +159,11 @@ to a specific chart combination."""
                 },
                 json={
                     "model": MODEL,
-                    "max_tokens": 4096,
+                    "max_tokens": 16000,
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": 10000,
+                    },
                     "system": system_prompt,
                     "messages": [
                         {"role": "user", "content": chart_text}

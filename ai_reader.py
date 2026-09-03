@@ -159,7 +159,8 @@ to a specific chart combination."""
                 },
                 json={
                     "model": MODEL,
-                    "max_tokens": 4000,
+                    "max_tokens": 8192,
+                    "temperature": 0.7,
                     "system": system_prompt,
                     "messages": [
                         {"role": "user", "content": chart_text}
@@ -181,9 +182,28 @@ to a specific chart combination."""
 
             data = response.json()
             content = data.get("content", [])
-            text = "\n".join(
-                block.get("text", "") for block in content if block.get("type") == "text"
-            )
+
+            # Extract text from all text blocks (skip thinking blocks)
+            text_parts = []
+            for block in content:
+                if block.get("type") == "text" and block.get("text", "").strip():
+                    text_parts.append(block["text"])
+
+            text = "\n".join(text_parts)
+
+            # If no text found, try to extract from any block with text
+            if not text.strip():
+                for block in content:
+                    if "text" in block and block["text"].strip():
+                        text_parts.append(block["text"])
+                text = "\n".join(text_parts)
+
+            # Final fallback: return raw response for debugging
+            if not text.strip():
+                return {
+                    "error": f"AI returned empty text. Response had {len(content)} content blocks: {[b.get('type') for b in content]}",
+                    "sections": {},
+                }
 
             # Parse sections
             sections = _parse_sections(text)

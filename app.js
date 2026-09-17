@@ -101,7 +101,7 @@ async function handleSubmit(e) {
     inp.focus();
     const hint = $('#city-hint');
     if (hint) {
-      hint.textContent = '⚠ Please select a city from the dropdown list.';
+      hint.textContent = '⚠ Please select an Indian city from the dropdown list.';
       hint.style.color = '#dc2626';
     }
     return;
@@ -466,7 +466,7 @@ function initCityAutocomplete() {
     statusIcon.innerHTML = '';
     inp.classList.remove('field-error');
     if (hint) {
-      hint.textContent = 'Type your city name and select from the dropdown list.';
+      hint.textContent = 'Select your Indian birth city from the dropdown list.';
       hint.style.color = '';
     }
 
@@ -532,7 +532,7 @@ function initCityAutocomplete() {
         } else {
           inp.classList.add('field-error');
           if (hint) {
-            hint.textContent = '⚠ Please select a city from the dropdown list.';
+            hint.textContent = '⚠ Please select an Indian city from the dropdown list.';
             hint.style.color = '#dc2626';
           }
         }
@@ -545,7 +545,7 @@ function renderCityDropdown(cities) {
   const dropdown = $('#city-dropdown');
   activeCityIndex = -1;
   if (!cities || cities.length === 0) {
-    dropdown.innerHTML = '<div class="city-item no-results">No matching cities found. Check spelling.</div>';
+    dropdown.innerHTML = '<div class="city-item no-results">No Indian cities found. Check spelling or enter a nearby city.</div>';
     show(dropdown);
     return;
   }

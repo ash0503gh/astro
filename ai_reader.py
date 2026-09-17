@@ -146,6 +146,7 @@ Interpret the current Mahadasha-Antardasha and what to expect.
 
 ## Key Recommendations
 Provide specific, actionable remedies and suggestions.
+Format recommendations clearly: use numbered items for each main area (e.g. 1. Remedies for Vish Yoga), and put each individual remedy on its own separate line starting with a bullet point (*). Never combine multiple bullet points onto the same line.
 
 Use both Sanskrit terms and English explanations. Be authentic to the Jyotish tradition
 while being accessible. Avoid generic statements — every insight should be traceable

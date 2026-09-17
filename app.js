@@ -543,9 +543,9 @@ function renderAITab() {
     content=Object.entries(sections).map(([k,t])=>{
       if(!t||t.trim().length<10) return '';
       const title=k.replace(/_/g,' ').replace(/and/g,'&').replace(/\b\w/g,c=>c.toUpperCase());
-      return `<div class="ai-section"><h3>${title}</h3>${t.split('\n\n').map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;
+      return `<div class="ai-section"><h3>${title}</h3>${formatAIContent(t)}</div>`;
     }).join('');
-  } else if (aiReading.full_text) { content=aiReading.full_text.split('\n\n').map(p=>`<p>${esc(p)}</p>`).join(''); }
+  } else if (aiReading.full_text) { content=`<div class="ai-section">${formatAIContent(aiReading.full_text)}</div>`; }
   return `<div class="card"><div class="card-title">✦ AI-Powered Deep Reading</div>${content||'<p style="color:#8e8e9e">No content.</p>'}
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e8e4de">
       <button class="btn btn-ghost" onclick="handleAIGenerate()">Regenerate Reading</button></div></div>`;
@@ -553,6 +553,96 @@ function renderAITab() {
 
 // ── Helpers ──
 function esc(str) { const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+function formatAIContent(rawText) {
+  if (!rawText) return '';
+
+  let text = rawText.replace(/\r\n/g, '\n');
+
+  // Normalize inline bullet separators (e.g. "Title:** * **Sub:**" or ". * **Sub:**")
+  text = text.replace(/([^\n])\s+[\*\-•]\s+(\*\*|[A-Za-z0-9])/g, '$1\n* $2');
+
+  const lines = text.split('\n');
+  const htmlBlocks = [];
+  let currentBullets = [];
+
+  function flushBullets() {
+    if (currentBullets.length > 0) {
+      htmlBlocks.push(`<ul class="ai-bullet-list">${currentBullets.map(it => `<li>${formatInline(it)}</li>`).join('')}</ul>`);
+      currentBullets = [];
+    }
+  }
+
+  function formatInline(str) {
+    if (!str) return '';
+    let s = str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Bold: **text**
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic: *text* or _text_
+    s = s.replace(/(^|[^*])\*([^*]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+    s = s.replace(/(^|[^_])_([^_]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+    // Clean any stray asterisks
+    s = s.replace(/\s+\*\s+/g, ' &bull; ');
+    s = s.replace(/(^|\s)\*(\s|$)/g, '$1 ');
+    return s.trim();
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      flushBullets();
+      continue;
+    }
+
+    // Subheadings: ##, ###, ####
+    const hMatch = line.match(/^#{2,4}\s+(.+)$/);
+    if (hMatch) {
+      flushBullets();
+      htmlBlocks.push(`<h4 class="ai-subheading">${formatInline(hMatch[1])}</h4>`);
+      continue;
+    }
+
+    // Bullet item: * or - or •
+    const bulletMatch = line.match(/^[\*\-•]\s+(.+)$/);
+    if (bulletMatch) {
+      currentBullets.push(bulletMatch[1]);
+      continue;
+    }
+
+    // Non-bullet line: flush collected bullets first
+    flushBullets();
+
+    // Numbered item: e.g. "1. **Title:** text"
+    const numMatch = line.match(/^(\d+)[\.\)]\s+(.+)$/);
+    if (numMatch) {
+      const num = numMatch[1];
+      const rest = numMatch[2];
+      htmlBlocks.push(`
+        <div class="ai-numbered-item">
+          <span class="ai-num-badge">${num}</span>
+          <div class="ai-item-body">${formatInline(rest)}</div>
+        </div>
+      `);
+      continue;
+    }
+
+    // Sign-off / closing remarks
+    if (/^(with deepest regards|with warm regards|warm regards|namaste|blessings)/i.test(line)) {
+      htmlBlocks.push(`<p class="ai-signoff">${formatInline(line)}</p>`);
+      continue;
+    }
+
+    // Normal paragraph
+    htmlBlocks.push(`<p class="ai-paragraph">${formatInline(line)}</p>`);
+  }
+
+  flushBullets();
+  return htmlBlocks.join('');
+}
 
 // ── City Autocomplete ──
 

@@ -154,10 +154,27 @@ async def health():
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(BASE_DIR / "index.html")
+    return FileResponse(
+        BASE_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+    )
+
+@app.get("/app.js")
+async def serve_app_js():
+    return FileResponse(
+        BASE_DIR / "app.js",
+        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+    )
+
+@app.get("/style.css")
+async def serve_style_css():
+    return FileResponse(
+        BASE_DIR / "style.css",
+        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+    )
 
 
-# Mount static files LAST so API routes take priority
+# Mount static files LAST so API routes and explicit static routes take priority
 app.mount("/", StaticFiles(directory=BASE_DIR), name="static")
 
 

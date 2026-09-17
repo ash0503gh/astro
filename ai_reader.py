@@ -267,7 +267,9 @@ def _parse_sections(text: str) -> dict:
             header_raw = match.group(1).strip(" :*#")
             if len(header_raw) > 2:
                 if current_content:
-                    sections[current_section] = "\n".join(current_content).strip()
+                    block = "\n".join(current_content).strip()
+                    block = re.sub(r'([^\n])\s*[\*\-•]\s+(\*\*|[A-Za-z0-9])', r'\1\n* \2', block)
+                    sections[current_section] = block
                 normalized_key = (
                     header_raw.lower()
                     .replace("&", "and")
@@ -282,7 +284,9 @@ def _parse_sections(text: str) -> dict:
         current_content.append(line)
 
     if current_content:
-        sections[current_section] = "\n".join(current_content).strip()
+        block = "\n".join(current_content).strip()
+        block = re.sub(r'([^\n])\s*[\*\-•]\s+(\*\*|[A-Za-z0-9])', r'\1\n* \2', block)
+        sections[current_section] = block
 
     # Drop introduction if empty
     if "introduction" in sections and not sections["introduction"]:

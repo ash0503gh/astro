@@ -81,9 +81,10 @@ body {
 .form-icon { font-size:1.6rem; margin-top:2px; }
 .form-header h2 { font-size:1.12rem; font-weight:700; }
 .form-header p { font-size:0.82rem; color:var(--text-secondary); margin-top:3px; }
-.field { display:flex; flex-direction:column; gap:6px; }
+.field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
 .field.full { width:100%; }
-.field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0; }
+.field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.field-row .field { margin-bottom:0; }
 .field label { font-size:0.73rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
 .field input, .field select, select.form-select {
   padding:11px 14px; background:var(--bg-input); border:1px solid var(--border);

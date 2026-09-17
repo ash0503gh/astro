@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+Devanagari:wght@400;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css?v=3.2" />
+  <link rel="stylesheet" href="/style.css?v=3.3" />
 </head>
 <body>
 
@@ -46,6 +46,14 @@
         </div>
         <form id="birth-form" onsubmit="handleSubmit(event)">
           <div class="field full">
+            <label for="inp-language" id="lbl-language">Preferred Language / भाषा</label>
+            <select id="inp-language" class="form-select" onchange="handleLanguageChange(this.value)">
+              <option value="en" selected>English</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+            </select>
+            <span id="lang-hint" class="field-hint">Results will be generated in this language.</span>
+          </div>
+          <div class="field full">
             <label for="inp-name" id="lbl-name">Full Name</label>
             <input id="inp-name" type="text" placeholder="Enter your name" required />
           </div>
@@ -59,32 +67,22 @@
               <input id="inp-time" type="time" required />
             </div>
           </div>
-          <div class="field-row">
-            <div class="field city-field-wrap">
-              <label for="inp-city" id="lbl-city">Birth City (India)</label>
-              <div class="city-input-container">
-                <input
-                  id="inp-city"
-                  type="text"
-                  placeholder="Type Indian city to select (e.g. Jaipur, Bengaluru, Delhi)"
-                  autocomplete="off"
-                  required
-                />
-                <span id="city-status-icon" class="city-status-icon"></span>
-              </div>
-              <div id="city-dropdown" class="city-dropdown hidden"></div>
-              <input type="hidden" id="inp-city-lat" />
-              <input type="hidden" id="inp-city-lon" />
-              <span id="city-hint" class="field-hint">Select your Indian birth city from the dropdown list.</span>
+          <div class="field full city-field-wrap">
+            <label for="inp-city" id="lbl-city">Birth City (India)</label>
+            <div class="city-input-container">
+              <input
+                id="inp-city"
+                type="text"
+                placeholder="Type Indian city to select (e.g. Jaipur, Bengaluru, Delhi)"
+                autocomplete="off"
+                required
+              />
+              <span id="city-status-icon" class="city-status-icon"></span>
             </div>
-            <div class="field">
-              <label for="inp-language" id="lbl-language">Preferred Language / भाषा</label>
-              <select id="inp-language" class="form-select" onchange="handleLanguageChange(this.value)">
-                <option value="en" selected>English</option>
-                <option value="hi">हिन्दी (Hindi)</option>
-              </select>
-              <span id="lang-hint" class="field-hint">Results will be generated in this language.</span>
-            </div>
+            <div id="city-dropdown" class="city-dropdown hidden"></div>
+            <input type="hidden" id="inp-city-lat" />
+            <input type="hidden" id="inp-city-lon" />
+            <span id="city-hint" class="field-hint">Select your Indian birth city from the dropdown list.</span>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btn-submit">
@@ -138,6 +136,6 @@
     </div>
   </footer>
 
-  <script src="/app.js?v=3.2"></script>
+  <script src="/app.js?v=3.3"></script>
 </body>
 </html>

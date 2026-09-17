@@ -441,7 +441,8 @@ function loadSessionFromCache() {
       }
       const hint = $('#city-hint');
       if (hint) {
-        hint.textContent = `✓ Selected: ${selectedCity.display}`;
+        const selPrefix = currentLanguage === 'hi' ? '✓ चयनित:' : '✓ Selected:';
+        hint.textContent = `${selPrefix} ${selectedCity.display}`;
         hint.style.color = '#16a34a';
       }
     }
@@ -519,6 +520,7 @@ function handleReset() {
   hide($('#section-loading')); hide($('#section-error'));
   hide($('#section-results')); show($('#section-form'));
   $('#btn-new-chart').style.display='none';
+  handleLanguageChange(currentLanguage, false);
 }
 
 function handleTabClick(tabId) {

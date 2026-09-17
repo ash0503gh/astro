@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-from astro_engine import compute_chart
+from astro_engine import compute_chart, _geocode_city
 from dasha import compute_vimshottari_dasha
 from yogas import detect_yogas
 from doshas import detect_doshas
@@ -121,15 +121,14 @@ async def api_ai_reading(data: BirthInput):
 
 @app.post("/api/geocode")
 async def api_geocode(data: dict):
-    from geopy.geocoders import Nominatim
-    city = data.get("city", "")
+    city = data.get("city", "").strip()
     if not city:
         raise HTTPException(status_code=400, detail="City required")
-    geolocator = Nominatim(user_agent="jyotish-app")
-    location = geolocator.geocode(city)
-    if not location:
-        raise HTTPException(status_code=404, detail=f"City '{city}' not found")
-    return {"city": city, "latitude": location.latitude, "longitude": location.longitude, "display_name": location.address}
+    try:
+        lat, lon = _geocode_city(city)
+        return {"city": city, "latitude": lat, "longitude": lon, "display_name": city}
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.get("/health")

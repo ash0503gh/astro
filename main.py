@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-from astro_engine import compute_chart, _geocode_city
+from astro_engine import compute_chart, _geocode_city, search_cities
 from dasha import compute_vimshottari_dasha
 from yogas import detect_yogas
 from doshas import detect_doshas
@@ -129,6 +129,14 @@ async def api_geocode(data: dict):
         return {"city": city, "latitude": lat, "longitude": lon, "display_name": city}
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/cities")
+async def api_cities(q: str = ""):
+    """City autocomplete endpoint."""
+    if not q or len(q.strip()) < 2:
+        return {"cities": []}
+    return {"cities": search_cities(q.strip())}
 
 
 @app.get("/health")

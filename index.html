@@ -56,10 +56,22 @@
               <input id="inp-time" type="time" required />
             </div>
           </div>
-          <div class="field full">
+          <div class="field full city-field-wrap">
             <label for="inp-city">Birth City</label>
-            <input id="inp-city" type="text" placeholder="e.g. Bengaluru, Delhi, Mumbai" required />
-            <span class="field-hint">City is geocoded for latitude, longitude & timezone automatically.</span>
+            <div class="city-input-container">
+              <input
+                id="inp-city"
+                type="text"
+                placeholder="Type city and select from list (e.g. Jaipur, Bengaluru)"
+                autocomplete="off"
+                required
+              />
+              <span id="city-status-icon" class="city-status-icon"></span>
+            </div>
+            <div id="city-dropdown" class="city-dropdown hidden"></div>
+            <input type="hidden" id="inp-city-lat" />
+            <input type="hidden" id="inp-city-lon" />
+            <span id="city-hint" class="field-hint">Type your city name and select from the dropdown list.</span>
           </div>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="btn-submit">

@@ -33,19 +33,34 @@ let activeTab = 'chart';
 let selectedDasha = null;
 let aiReading = null;
 let aiLoading = false;
+let selectedCity = null;
+let cityDebounceTimer = null;
+let currentCityResults = [];
+let activeCityIndex = -1;
 
 // ── DOM ──
 
 const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
 
 // ── API ──
 
 async function apiChart(data) {
+  const payload = {
+    name: data.name,
+    birth_date: data.birthDate,
+    birth_time: data.birthTime,
+    birth_city: data.birthCity,
+  };
+  if (data.latitude && data.longitude) {
+    payload.latitude = data.latitude;
+    payload.longitude = data.longitude;
+  }
   const res = await fetch('/api/chart', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ name:data.name, birth_date:data.birthDate, birth_time:data.birthTime, birth_city:data.birthCity }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) { const e = await res.json().catch(()=>({detail:'Server error'})); throw new Error(e.detail||`HTTP ${res.status}`); }
   return res.json();
@@ -75,9 +90,32 @@ async function apiAIReading(data) {
 async function handleSubmit(e) {
   e.preventDefault();
   const name=$('#inp-name').value.trim(), birthDate=$('#inp-date').value,
-        birthTime=$('#inp-time').value, birthCity=$('#inp-city').value.trim();
-  if (!name||!birthDate||!birthTime||!birthCity) return;
-  birthInput = { name, birthDate, birthTime, birthCity };
+        birthTime=$('#inp-time').value;
+
+  if (!name||!birthDate||!birthTime) return;
+
+  // Enforce selecting city from list
+  if (!selectedCity) {
+    const inp = $('#inp-city');
+    inp.classList.add('field-error');
+    inp.focus();
+    const hint = $('#city-hint');
+    if (hint) {
+      hint.textContent = '⚠ Please select a city from the dropdown list.';
+      hint.style.color = '#dc2626';
+    }
+    return;
+  }
+
+  birthInput = {
+    name,
+    birthDate,
+    birthTime,
+    birthCity: selectedCity.name,
+    latitude: selectedCity.latitude,
+    longitude: selectedCity.longitude,
+  };
+
   hide($('#section-form')); hide($('#section-error'));
   show($('#section-loading')); hide($('#section-results'));
   try {
@@ -88,7 +126,19 @@ async function handleSubmit(e) {
 }
 
 function handleReset() {
-  chartData=null; birthInput=null; aiReading=null;
+  chartData=null; birthInput=null; aiReading=null; selectedCity=null;
+  const statusIcon = $('#city-status-icon');
+  if (statusIcon) { statusIcon.className = 'city-status-icon'; statusIcon.innerHTML = ''; }
+  const hint = $('#city-hint');
+  if (hint) { hint.textContent = 'Type your city name and select from the dropdown list.'; hint.style.color = ''; }
+  const inp = $('#inp-city');
+  if (inp) { inp.classList.remove('field-error'); inp.value = ''; }
+  const latInp = $('#inp-city-lat');
+  if (latInp) latInp.value = '';
+  const lonInp = $('#inp-city-lon');
+  if (lonInp) lonInp.value = '';
+  const dropdown = $('#city-dropdown');
+  if (dropdown) { dropdown.innerHTML = ''; hide(dropdown); }
   hide($('#section-loading')); hide($('#section-error'));
   hide($('#section-results')); show($('#section-form'));
   $('#btn-new-chart').style.display='none';
@@ -393,3 +443,169 @@ function renderAITab() {
 
 // ── Helpers ──
 function esc(str) { const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+// ── City Autocomplete ──
+
+function initCityAutocomplete() {
+  const inp = $('#inp-city');
+  const dropdown = $('#city-dropdown');
+  const statusIcon = $('#city-status-icon');
+  const hint = $('#city-hint');
+
+  if (!inp || !dropdown) return;
+
+  inp.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    selectedCity = null;
+    const latInp = $('#inp-city-lat');
+    if (latInp) latInp.value = '';
+    const lonInp = $('#inp-city-lon');
+    if (lonInp) lonInp.value = '';
+
+    statusIcon.className = 'city-status-icon';
+    statusIcon.innerHTML = '';
+    inp.classList.remove('field-error');
+    if (hint) {
+      hint.textContent = 'Type your city name and select from the dropdown list.';
+      hint.style.color = '';
+    }
+
+    clearTimeout(cityDebounceTimer);
+    if (val.length < 2) {
+      dropdown.innerHTML = '';
+      hide(dropdown);
+      currentCityResults = [];
+      activeCityIndex = -1;
+      return;
+    }
+
+    statusIcon.className = 'city-status-icon loading';
+    cityDebounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/cities?q=${encodeURIComponent(val)}`);
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        currentCityResults = data.cities || [];
+        renderCityDropdown(currentCityResults);
+      } catch (err) {
+        currentCityResults = [];
+        renderCityDropdown([]);
+      } finally {
+        if (!selectedCity) {
+          statusIcon.className = 'city-status-icon';
+        }
+      }
+    }, 180);
+  });
+
+  inp.addEventListener('keydown', (e) => {
+    if (dropdown.classList.contains('hidden') || currentCityResults.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeCityIndex = (activeCityIndex + 1) % currentCityResults.length;
+      updateDropdownHighlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeCityIndex = (activeCityIndex - 1 + currentCityResults.length) % currentCityResults.length;
+      updateDropdownHighlight();
+    } else if (e.key === 'Enter') {
+      if (activeCityIndex >= 0 && activeCityIndex < currentCityResults.length) {
+        e.preventDefault();
+        selectCity(currentCityResults[activeCityIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      hide(dropdown);
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!inp.contains(e.target) && !dropdown.contains(e.target)) {
+      hide(dropdown);
+      if (inp.value.trim() && !selectedCity) {
+        const exact = currentCityResults.find(
+          c => c.name.toLowerCase() === inp.value.trim().toLowerCase() ||
+               c.display.toLowerCase() === inp.value.trim().toLowerCase()
+        );
+        if (exact) {
+          selectCity(exact);
+        } else {
+          inp.classList.add('field-error');
+          if (hint) {
+            hint.textContent = '⚠ Please select a city from the dropdown list.';
+            hint.style.color = '#dc2626';
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCityDropdown(cities) {
+  const dropdown = $('#city-dropdown');
+  activeCityIndex = -1;
+  if (!cities || cities.length === 0) {
+    dropdown.innerHTML = '<div class="city-item no-results">No matching cities found. Check spelling.</div>';
+    show(dropdown);
+    return;
+  }
+
+  dropdown.innerHTML = cities.map((c, i) => `
+    <div class="city-item" data-index="${i}" onclick="window.handleCitySelect(${i})">
+      <div>
+        <strong>${esc(c.name)}</strong>
+        <span class="city-sub">${esc(c.display.replace(c.name + ', ', ''))}</span>
+      </div>
+      <span style="font-size:0.75rem;color:#8e8e9e">Select ↵</span>
+    </div>
+  `).join('');
+  show(dropdown);
+}
+
+function updateDropdownHighlight() {
+  const items = $$('#city-dropdown .city-item');
+  items.forEach((item, i) => {
+    if (i === activeCityIndex) {
+      item.classList.add('active');
+      item.scrollIntoView({ block: 'nearest' });
+    } else {
+      item.classList.remove('active');
+    }
+  });
+}
+
+window.handleCitySelect = function(index) {
+  if (currentCityResults[index]) {
+    selectCity(currentCityResults[index]);
+  }
+};
+
+function selectCity(city) {
+  selectedCity = city;
+  const inp = $('#inp-city');
+  inp.value = city.display;
+  inp.classList.remove('field-error');
+  const latInp = $('#inp-city-lat');
+  if (latInp) latInp.value = city.latitude;
+  const lonInp = $('#inp-city-lon');
+  if (lonInp) lonInp.value = city.longitude;
+
+  const statusIcon = $('#city-status-icon');
+  if (statusIcon) {
+    statusIcon.className = 'city-status-icon active';
+    statusIcon.innerHTML = '✓';
+  }
+  const hint = $('#city-hint');
+  if (hint) {
+    hint.textContent = `✓ Selected: ${city.display}`;
+    hint.style.color = '#16a34a';
+  }
+  hide($('#city-dropdown'));
+}
+
+// ── Startup ──
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCityAutocomplete);
+} else {
+  initCityAutocomplete();
+}

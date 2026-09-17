@@ -264,6 +264,70 @@ def _geocode_city(city: str) -> tuple:
     )
 
 
+def search_cities(query: str, limit: int = 8) -> list:
+    """Search cities for autocomplete suggestions."""
+    q = query.strip().lower()
+    if not q:
+        return []
+
+    results = []
+    seen = set()
+
+    # Search local dictionary first
+    for city_key, (lat, lon) in MAJOR_CITIES.items():
+        if city_key.startswith(q) or q in city_key:
+            key = (round(lat, 2), round(lon, 2))
+            if key not in seen:
+                seen.add(key)
+                formatted_name = city_key.title()
+                results.append({
+                    "name": formatted_name,
+                    "display": f"{formatted_name}, India" if lat > 8 and lat < 37 and lon > 68 and lon < 97 else formatted_name,
+                    "latitude": lat,
+                    "longitude": lon,
+                })
+                if len(results) >= limit:
+                    return results
+
+    # If fewer than limit, query Open-Meteo for any global location
+    if len(results) < limit:
+        try:
+            resp = httpx.get(
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": query, "count": limit, "language": "en", "format": "json"},
+                timeout=4.0,
+            )
+            if resp.status_code == 200:
+                items = resp.json().get("results", [])
+                for item in items:
+                    c_name = item.get("name", "")
+                    admin1 = item.get("admin1", "")
+                    country = item.get("country", "")
+                    parts = [c_name]
+                    if admin1 and admin1 != c_name:
+                        parts.append(admin1)
+                    if country:
+                        parts.append(country)
+                    display = ", ".join(parts)
+                    lat = float(item["latitude"])
+                    lon = float(item["longitude"])
+                    key = (round(lat, 2), round(lon, 2))
+                    if key not in seen:
+                        seen.add(key)
+                        results.append({
+                            "name": c_name,
+                            "display": display,
+                            "latitude": lat,
+                            "longitude": lon,
+                        })
+                        if len(results) >= limit:
+                            break
+        except Exception:
+            pass
+
+    return results
+
+
 def _get_timezone(lat: float, lon: float, dt: datetime) -> tuple:
     """Get timezone name and UTC offset for a location at a given datetime."""
     tf = TimezoneFinder()

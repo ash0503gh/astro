@@ -153,24 +153,37 @@ async def health():
 # ── Static Frontend ──
 
 @app.get("/")
+@app.get("/index.html")
 async def serve_index():
     return FileResponse(
         BASE_DIR / "index.html",
-        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
     )
 
 @app.get("/app.js")
 async def serve_app_js():
     return FileResponse(
         BASE_DIR / "app.js",
-        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
     )
 
 @app.get("/style.css")
 async def serve_style_css():
     return FileResponse(
         BASE_DIR / "style.css",
-        headers={"Cache-Control": "no-cache, must-revalidate, max-age=0"}
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
     )
 
 

@@ -39,9 +39,15 @@ let currentCityResults = [];
 let activeCityIndex = -1;
 
 // ── Browser Cache Configuration (1 Hour TTL) ──
-const CACHE_KEY = 'jyotish_session_v1';
+const CACHE_KEY = 'jyotish_session_v2';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour = 3,600,000 ms
 const citySearchCache = new Map();
+
+// Purge any stale session cache from older versions
+try {
+  localStorage.removeItem('jyotish_session_v1');
+  localStorage.removeItem('jyotish_session_cache');
+} catch (e) {}
 
 // ── DOM ──
 

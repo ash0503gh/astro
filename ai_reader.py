@@ -268,7 +268,7 @@ def _parse_sections(text: str) -> dict:
             if len(header_raw) > 2:
                 if current_content:
                     block = "\n".join(current_content).strip()
-                    block = re.sub(r'([^\n])\s*[\*\-•]\s+(\*\*|[A-Za-z0-9])', r'\1\n* \2', block)
+                    block = re.sub(r"\s+[\*\-•]\s+", "\n* ", block)
                     sections[current_section] = block
                 normalized_key = (
                     header_raw.lower()
@@ -285,7 +285,7 @@ def _parse_sections(text: str) -> dict:
 
     if current_content:
         block = "\n".join(current_content).strip()
-        block = re.sub(r'([^\n])\s*[\*\-•]\s+(\*\*|[A-Za-z0-9])', r'\1\n* \2', block)
+        block = re.sub(r"\s+[\*\-•]\s+", "\n* ", block)
         sections[current_section] = block
 
     # Drop introduction if empty

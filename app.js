@@ -559,8 +559,9 @@ function formatAIContent(rawText) {
 
   let text = rawText.replace(/\r\n/g, '\n');
 
-  // Normalize inline bullet separators (e.g. "Title:** * Sub" or "text. * **Sub:**")
-  text = text.replace(/([^\n])\s*[\*\-•]\s+(\*\*|[A-Za-z0-9])/g, '$1\n* $2');
+  // Split standalone inline bullets (e.g. "Title:** * Sub" or "text. * **Sub:**")
+  // Must require whitespace before AND after bullet marker so bold markdown (**) is never broken
+  text = text.replace(/\s+[\*\-•]\s+/g, '\n* ');
 
   const lines = text.split('\n');
   const htmlBlocks = [];
@@ -585,13 +586,10 @@ function formatAIContent(rawText) {
     // Bold: **text**
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     // Italic: *text* or _text_
-    s = s.replace(/(^|[^*])\*([^*]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+    s = s.replace(/(^|[^*])\*([^*\n]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
     s = s.replace(/(^|[^_])_([^_]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
-    // Strip any remaining consecutive asterisks (e.g. unmatched **)
-    s = s.replace(/\*{2,}/g, '');
-    // Clean any stray standalone bullet asterisks
-    s = s.replace(/\s+\*\s+/g, ' &bull; ');
-    s = s.replace(/(^|\s)\*(\s|$)/g, '$1 ');
+    // Strip any remaining asterisks (unmatched **, stray *, etc.) so none ever show
+    s = s.replace(/\*/g, '');
     return s.trim();
   }
 

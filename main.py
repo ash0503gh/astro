@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -133,10 +133,16 @@ async def api_geocode(data: dict):
 
 @app.get("/api/cities")
 async def api_cities(q: str = ""):
-    """City autocomplete endpoint."""
+    """City autocomplete endpoint with 1-hour browser cache."""
     if not q or len(q.strip()) < 2:
-        return {"cities": []}
-    return {"cities": search_cities(q.strip())}
+        return JSONResponse(
+            content={"cities": []},
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    return JSONResponse(
+        content={"cities": search_cities(q.strip())},
+        headers={"Cache-Control": "public, max-age=3600"}
+    )
 
 
 @app.get("/health")

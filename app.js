@@ -38,6 +38,11 @@ let cityDebounceTimer = null;
 let currentCityResults = [];
 let activeCityIndex = -1;
 
+// ── Browser Cache Configuration (1 Hour TTL) ──
+const CACHE_KEY = 'jyotish_session_v1';
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour = 3,600,000 ms
+const citySearchCache = new Map();
+
 // ── DOM ──
 
 const $ = (sel) => document.querySelector(sel);
@@ -85,6 +90,90 @@ async function apiAIReading(data) {
   return res.json();
 }
 
+// ── Session Cache Helpers (1 Hour TTL) ──
+
+function saveSessionToCache() {
+  if (!chartData || !birthInput) return;
+  try {
+    const payload = {
+      timestamp: Date.now(),
+      birthInput,
+      selectedCity,
+      chartData,
+      aiReading,
+      activeTab,
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Could not save session to cache:', err);
+  }
+}
+
+function clearSessionCache() {
+  try {
+    localStorage.removeItem(CACHE_KEY);
+  } catch (err) {}
+}
+
+function loadSessionFromCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    const now = Date.now();
+
+    // Check if 1 hour has elapsed
+    if (!data.timestamp || (now - data.timestamp > CACHE_TTL_MS)) {
+      clearSessionCache();
+      return false;
+    }
+
+    // Restore state from cache
+    birthInput = data.birthInput || null;
+    selectedCity = data.selectedCity || null;
+    chartData = data.chartData || null;
+    aiReading = data.aiReading || null;
+    activeTab = data.activeTab || 'chart';
+
+    // Populate form fields so they match the cached chart
+    if (birthInput) {
+      const nameInp = $('#inp-name');
+      if (nameInp) nameInp.value = birthInput.name || '';
+      const dateInp = $('#inp-date');
+      if (dateInp) dateInp.value = birthInput.birthDate || '';
+      const timeInp = $('#inp-time');
+      if (timeInp) timeInp.value = birthInput.birthTime || '';
+    }
+    if (selectedCity) {
+      const cityInp = $('#inp-city');
+      if (cityInp) cityInp.value = selectedCity.display || selectedCity.name || '';
+      const latInp = $('#inp-city-lat');
+      if (latInp) latInp.value = selectedCity.latitude || '';
+      const lonInp = $('#inp-city-lon');
+      if (lonInp) lonInp.value = selectedCity.longitude || '';
+      const statusIcon = $('#city-status-icon');
+      if (statusIcon) {
+        statusIcon.className = 'city-status-icon active';
+        statusIcon.innerHTML = '✓';
+      }
+      const hint = $('#city-hint');
+      if (hint) {
+        hint.textContent = `✓ Selected: ${selectedCity.display}`;
+        hint.style.color = '#16a34a';
+      }
+    }
+
+    if (chartData) {
+      renderResults();
+      return true;
+    }
+  } catch (err) {
+    console.warn('Could not restore session from cache:', err);
+    clearSessionCache();
+  }
+  return false;
+}
+
 // ── Event Handlers ──
 
 async function handleSubmit(e) {
@@ -122,15 +211,17 @@ async function handleSubmit(e) {
     chartData = await apiChart(birthInput);
     activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false;
     renderResults();
+    saveSessionToCache();
   } catch(err) { showError(err.message); }
 }
 
 function handleReset() {
+  clearSessionCache();
   chartData=null; birthInput=null; aiReading=null; selectedCity=null;
   const statusIcon = $('#city-status-icon');
   if (statusIcon) { statusIcon.className = 'city-status-icon'; statusIcon.innerHTML = ''; }
   const hint = $('#city-hint');
-  if (hint) { hint.textContent = 'Type your city name and select from the dropdown list.'; hint.style.color = ''; }
+  if (hint) { hint.textContent = 'Select your Indian birth city from the dropdown list.'; hint.style.color = ''; }
   const inp = $('#inp-city');
   if (inp) { inp.classList.remove('field-error'); inp.value = ''; }
   const latInp = $('#inp-city-lat');
@@ -144,7 +235,12 @@ function handleReset() {
   $('#btn-new-chart').style.display='none';
 }
 
-function handleTabClick(tabId) { activeTab=tabId; renderTabs(); renderTabContent(); }
+function handleTabClick(tabId) {
+  activeTab=tabId;
+  renderTabs();
+  renderTabContent();
+  saveSessionToCache();
+}
 
 function showError(msg) {
   hide($('#section-loading')); hide($('#section-form')); hide($('#section-results'));
@@ -154,7 +250,11 @@ function showError(msg) {
 async function handleAIGenerate() {
   if (!birthInput||aiLoading) return;
   aiLoading=true; renderTabContent();
-  try { const d = await apiAIReading(birthInput); aiReading=d.reading; }
+  try {
+    const d = await apiAIReading(birthInput);
+    aiReading=d.reading;
+    saveSessionToCache();
+  }
   catch(err) { aiReading={error:err.message}; }
   finally { aiLoading=false; renderTabContent(); }
 }
@@ -169,8 +269,18 @@ function renderResults() {
 
 function renderResultsHeader() {
   const d=chartData, moon=d.planets.find(p=>p.name==='Moon');
+  let cacheNotice = '';
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const remainingMin = Math.max(1, Math.round((CACHE_TTL_MS - (Date.now() - parsed.timestamp)) / 60000));
+      cacheNotice = `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;padding:2px 8px;border-radius:12px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;font-weight:500;margin-left:8px;vertical-align:middle;">⚡ Cached (${remainingMin}m left)</span>`;
+    }
+  } catch (e) {}
+
   $('#results-header').innerHTML=`
-    <h2>${esc(d.name)}'s Kundali</h2>
+    <h2>${esc(d.name)}'s Kundali ${cacheNotice}</h2>
     <p class="meta">${d.birth_info.date} &middot; ${d.birth_info.time} &middot; ${esc(d.birth_info.city)}</p>
     <p class="meta-sub">Lagna: ${d.ascendant.sign} (${d.ascendant.sign_english}) &middot; Moon: ${moon?moon.sign:''} &middot; ${d.birth_info.timezone}</p>`;
 }
@@ -482,10 +592,19 @@ function initCityAutocomplete() {
     statusIcon.className = 'city-status-icon loading';
     cityDebounceTimer = setTimeout(async () => {
       try {
+        const cacheKey = val.toLowerCase();
+        const cached = citySearchCache.get(cacheKey);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+          currentCityResults = cached.data;
+          renderCityDropdown(currentCityResults);
+          return;
+        }
+
         const res = await fetch(`/api/cities?q=${encodeURIComponent(val)}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         currentCityResults = data.cities || [];
+        citySearchCache.set(cacheKey, { timestamp: Date.now(), data: currentCityResults });
         renderCityDropdown(currentCityResults);
       } catch (err) {
         currentCityResults = [];
@@ -604,8 +723,14 @@ function selectCity(city) {
 }
 
 // ── Startup ──
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initCityAutocomplete);
-} else {
+
+function initApp() {
   initCityAutocomplete();
+  loadSessionFromCache();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
 }

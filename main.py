@@ -46,6 +46,7 @@ class BirthInput(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     timezone_offset: Optional[float] = None
+    language: Optional[str] = "en"
 
 
 # ── API Endpoints ──
@@ -65,13 +66,16 @@ async def api_chart(data: BirthInput):
         dashas = compute_vimshottari_dasha(chart["moon_longitude"], data.birth_date)
         yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
         doshas_list = detect_doshas(chart["planets"], chart["houses"])
+        lang = data.language or "en"
         basic_reading = generate_basic_reading(
-            chart["planets"], chart["houses"], chart["ascendant"], yogas, doshas_list
+            chart["planets"], chart["houses"], chart["ascendant"], yogas, doshas_list,
+            language=lang,
         )
         chart_data = _prepare_chart_data(chart)
 
         return {
             "name": data.name,
+            "language": lang,
             "birth_info": {
                 "date": data.birth_date,
                 "time": data.birth_time,
@@ -113,6 +117,7 @@ async def api_ai_reading(data: BirthInput):
         reading = await generate_ai_reading(
             name=data.name, chart=chart,
             dashas=dashas, yogas=yogas, doshas=doshas_list,
+            language=data.language or "en",
         )
         return {"reading": reading}
     except Exception as e:

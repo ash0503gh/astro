@@ -641,6 +641,7 @@ def compute_chart(
     for p in planets_data:
         navamsa_data.append({
             "name": p["name"],
+            "vedic_name": p.get("vedic_name", p["name"]),
             "symbol": p["symbol"],
             "navamsa_sign": p["navamsa"]["sign"],
             "navamsa_sign_num": p["navamsa"]["sign_num"],

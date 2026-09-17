@@ -99,6 +99,7 @@ async def generate_ai_reading(
     dashas: list,
     yogas: list,
     doshas: list,
+    language: str = "en",
 ) -> dict:
     """Generate a deep AI reading of the birth chart using Google Gemini."""
 
@@ -111,7 +112,44 @@ async def generate_ai_reading(
 
     chart_text = _format_chart_for_prompt(name, chart, dashas, yogas, doshas)
 
-    system_prompt = """You are an expert Vedic astrologer (Jyotishi) with deep knowledge of
+    if language == "hi":
+        system_prompt = """आप एक प्रकांड वैदिक ज्योतिषी (दैवज्ञ) हैं, जिन्हें प्राचीन शास्त्रीय ग्रंथों (बृहत्पाराशर होराशास्त्र, फलदीपिका, जातक पारिजात, मानसागरी) का गूढ़ ज्ञान है।
+
+प्रदान की गई जन्म कुण्डली का गहन, प्रामाणिक और विस्तृत विश्लेषण शुद्ध, सुरुचिपूर्ण एवं गरिमामयी हिन्दी भाषा (देवनागरी लिपि) में प्रस्तुत करें। आपका फलादेश जातक और उनके परिवार के लिए अत्यंत अंतर्दृष्टिपूर्ण, सटीक, संतुलित और व्यावहारिक होना चाहिए।
+
+अपने विश्लेषण को अनिवार्य रूप से ठीक इन्हीं शीर्षकों (Exact Markdown Headers) के अंतर्गत प्रस्तुत करें:
+
+## Personality & Core Nature
+लग्न, लग्नेश, और चन्द्र राशि का शास्त्रीय विश्लेषण करते हुए जातक के व्यक्तित्व, स्वभाव, गुण-दोष और मूल प्रकृति का विस्तृत वर्णन करें।
+
+## Mind & Emotions
+चन्द्रमा की भाव स्थिति, नक्षत्र, और उस पर पड़ने वाले शुभ-अशुभ ग्रहों के दृष्टि प्रभाव के आधार पर जातक की मानसिक स्थिति, संवेदनशीलता और आंतरिक सोच का विश्लेषण करें।
+
+## Career & Profession
+दशम भाव (कर्म भाव), दशमेश, दशम भावस्थ ग्रहों तथा आजीविका से संबंधित योगों का विश्लेषण कर उपयुक्त कार्यक्षेत्र एवं करियर मार्गदर्शन प्रदान करें।
+
+## Wealth & Finances
+द्वितीय भाव (धन भाव), एकादश भाव (लाभ भाव), धन योगों तथा देवगुरु बृहस्पति की स्थिति के आधार पर धन संचय, पैतृक संपत्ति और आर्थिक संभावनाओं का विश्लेषण करें।
+
+## Relationships & Marriage
+सप्तम भाव (विवाह व साझेदारी भाव), सप्तमेश, शुक्र (एवं स्त्रियों की कुण्डली में गुरु) के आधार पर वैवाहिक जीवन, जीवनसाथी के स्वभाव और संबंधों का विश्लेषण करें।
+
+## Health & Vitality
+लग्न भाव, षष्ठ भाव (रोग भाव), लग्नेश और पीड़ित ग्रहों के आधार पर स्वास्थ्य, जीवन ऊर्जा और आवश्यक स्वास्थ्य सावधानियों का विश्लेषण करें।
+
+## Spiritual Path
+नवम भाव (भाग्य व धर्म भाव), द्वादश भाव (मोक्ष भाव), केतु की स्थिति और आध्यात्मिक योगों के आधार पर जातक की आध्यात्मिक यात्रा और ईश्वर भक्ति का विश्लेषण करें।
+
+## Current Period Analysis
+वर्तमान में चल रही विंशोत्तरी महादशा एवं अंतर्दशा का प्रभाव और आगामी समय के लिए स्पष्ट फलकथन करें।
+
+## Key Recommendations
+कुण्डली के दोषों के निवारण तथा शुभ ग्रहों के बल संवर्धन हेतु स्पष्ट और व्यावहारिक वैदिक उपाय प्रस्तुत करें।
+उपायों को स्पष्ट रूप से संरचित करें: प्रत्येक मुख्य विषय के लिए संख्याबद्ध क्रम (जैसे 1. विष योग के निवारण हेतु उपाय) का प्रयोग करें, और प्रत्येक विशिष्ट उपाय को अलग पंक्ति में बुलेट बिंदु (*) से शुरू करें। कभी भी एक ही पंक्ति पर कई बुलेट बिंदु न जोड़ें।
+
+प्रामाणिक वैदिक ज्योतिषीय शब्दावली (जैसे लग्न, राशि, नक्षत्र, महादशा, गोचर, उपाय, मंत्र, दान) का प्रयोग करें। सामान्य या अस्पष्ट बातों से बचें — प्रत्येक अंतर्दृष्टि कुण्डली के किसी विशिष्ट ग्रह योग पर आधारित होनी चाहिए।"""
+    else:
+        system_prompt = """You are an expert Vedic astrologer (Jyotishi) with deep knowledge of
 classical texts (Brihat Parashara Hora Shastra, Phaladeepika, Jataka Parijata).
 
 Analyze the birth chart provided and give a comprehensive reading. Be insightful,
@@ -261,6 +299,19 @@ def _parse_sections(text: str) -> dict:
     current_section = "introduction"
     current_content = []
 
+    # Multilingual mapping of header keywords to canonical keys
+    HEADER_KEY_MAP = [
+        (("personality", "core nature", "व्यक्तित्व", "स्वभाव"), "personality_and_core_nature"),
+        (("mind", "emotion", "मन", "भावना"), "mind_and_emotions"),
+        (("career", "profession", "कर्म", "आजीविका", "करियर", "व्यवसाय"), "career_and_profession"),
+        (("wealth", "finance", "धन", "वित्त", "आर्थिक"), "wealth_and_finances"),
+        (("relationship", "marriage", "संबंध", "विवाह", "वैवाहिक", "दांपत्य"), "relationships_and_marriage"),
+        (("health", "vitality", "स्वास्थ्य", "रोग", "आयु"), "health_and_vitality"),
+        (("spiritual", "path", "आध्यात्म", "धर्म", "मोक्ष"), "spiritual_path"),
+        (("current period", "dasha", "दशा", "महादशा", "वर्तमान"), "current_period_analysis"),
+        (("recommendation", "remed", "उपाय", "सुझाव", "समाधान"), "key_recommendations"),
+    ]
+
     for line in text.split("\n"):
         match = re.match(r"^#{1,3}\s+(?:[0-9]+[\.\)]\s*)?(.+)", line)
         if match:
@@ -270,14 +321,27 @@ def _parse_sections(text: str) -> dict:
                     block = "\n".join(current_content).strip()
                     block = re.sub(r"\s+[\*\-•]\s+", "\n* ", block)
                     sections[current_section] = block
-                normalized_key = (
-                    header_raw.lower()
-                    .replace("&", "and")
-                    .replace("/", "_")
-                    .replace("-", "_")
-                )
-                normalized_key = re.sub(r"[^\w\s]", "", normalized_key)
-                normalized_key = re.sub(r"\s+", "_", normalized_key).strip("_")
+
+                # Match against canonical mapping
+                found_key = None
+                hl = header_raw.lower()
+                for keywords, canonical in HEADER_KEY_MAP:
+                    if any(kw in hl for kw in keywords):
+                        found_key = canonical
+                        break
+
+                if found_key:
+                    normalized_key = found_key
+                else:
+                    normalized_key = (
+                        header_raw.lower()
+                        .replace("&", "and")
+                        .replace("/", "_")
+                        .replace("-", "_")
+                    )
+                    normalized_key = re.sub(r"[^\w\s]", "", normalized_key)
+                    normalized_key = re.sub(r"\s+", "_", normalized_key).strip("_")
+
                 current_section = normalized_key
                 current_content = []
                 continue

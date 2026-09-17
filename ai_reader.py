@@ -147,7 +147,7 @@ async def generate_ai_reading(
 कुण्डली के दोषों के निवारण तथा शुभ ग्रहों के बल संवर्धन हेतु स्पष्ट और व्यावहारिक वैदिक उपाय प्रस्तुत करें।
 उपायों को स्पष्ट रूप से संरचित करें: प्रत्येक मुख्य विषय के लिए संख्याबद्ध क्रम (जैसे 1. विष योग के निवारण हेतु उपाय) का प्रयोग करें, और प्रत्येक विशिष्ट उपाय को अलग पंक्ति में बुलेट बिंदु (*) से शुरू करें। कभी भी एक ही पंक्ति पर कई बुलेट बिंदु न जोड़ें।
 
-प्रामाणिक वैदिक ज्योतिषीय शब्दावली (जैसे लग्न, राशि, नक्षत्र, महादशा, गोचर, उपाय, मंत्र, दान) का प्रयोग करें। सामान्य या अस्पष्ट बातों से बचें — प्रत्येक अंतर्दृष्टि कुण्डली के किसी विशिष्ट ग्रह योग पर आधारित होनी चाहिए।"""
+प्रामाणिक वैदिक ज्योतिषीय शब्दावली (जैसे लग्न, राशि, नक्षत्र, महादशा, गोचर, उपाय, मंत्र, दान) का प्रयोग करें। प्रत्येक अनुभाग के लिए 1–2 सटीक, सारगर्भित और केंद्रित परिच्छेद लिखें ताकि सभी 9 शीर्षकों का विश्लेषण अनिवार्य रूप से पूर्ण हो सके। सामान्य या अस्पष्ट बातों से बचें — प्रत्येक अंतर्दृष्टि कुण्डली के किसी विशिष्ट ग्रह योग पर आधारित होनी चाहिए।"""
     else:
         system_prompt = """You are an expert Vedic astrologer (Jyotishi) with deep knowledge of
 classical texts (Brihat Parashara Hora Shastra, Phaladeepika, Jataka Parijata).
@@ -186,8 +186,7 @@ Interpret the current Mahadasha-Antardasha and what to expect.
 Provide specific, actionable remedies and suggestions.
 Format recommendations clearly: use numbered items for each main area (e.g. 1. Remedies for Vish Yoga), and put each individual remedy on its own separate line starting with a bullet point (*). Never combine multiple bullet points onto the same line.
 
-Use both Sanskrit terms and English explanations. Be authentic to the Jyotish tradition
-while being accessible. Avoid generic statements — every insight should be traceable
+Use both Sanskrit terms and English explanations. Provide 1–2 focused, substantive paragraphs per section so all 9 sections are thoroughly completed. Avoid generic statements — every insight should be traceable
 to a specific chart combination."""
 
     payload = {
@@ -214,7 +213,7 @@ to a specific chart combination."""
 
     last_error = ""
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=90.0) as client:
         for model in models_to_try:
             url = f"{GEMINI_BASE_URL}/{model}:generateContent?key={api_key}"
             try:

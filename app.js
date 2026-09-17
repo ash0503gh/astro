@@ -882,7 +882,7 @@ function renderAITab() {
     content=Object.entries(sections).map(([k,t])=>{
       if(!t||t.trim().length<10) return '';
       const localizedTitle = tr.ai_sections?.[k] || k.replace(/_/g,' ').replace(/and/g,'&').replace(/\b\w/g,c=>c.toUpperCase());
-      return `<div class="ai-section"><h3>✦ ${localizedTitle}</h3>${formatAIContent(t)}</div>`;
+      return `<div class="ai-section"><h3>${localizedTitle}</h3>${formatAIContent(t)}</div>`;
     }).join('');
   } else if (aiReading.full_text) { content=`<div class="ai-section">${formatAIContent(aiReading.full_text)}</div>`; }
   return `<div class="card"><div class="card-title">${tr.ai_title}</div>${content||`<p style="color:#8e8e9e">${isHi ? 'कोई सामग्री उपलब्ध नहीं है।' : 'No content.'}</p>`}

@@ -252,6 +252,23 @@ function localizeDashaLord(lord) {
   return currentLanguage === 'hi' ? (DASHA_LORDS_HI[lord] || lord) : lord;
 }
 
+const NAKSHATRAS_HI = {
+  'Ashwini': 'अश्विनी', 'Bharani': 'भरणी', 'Krittika': 'कृत्तिका',
+  'Rohini': 'रोहिणी', 'Mrigashira': 'मृगशिरा', 'Ardra': 'आर्द्रा',
+  'Punarvasu': 'पुनर्वसु', 'Pushya': 'पुष्य', 'Ashlesha': 'आश्लेषा',
+  'Magha': 'मघा', 'Purva Phalguni': 'पूर्वाफाल्गुनी', 'Uttara Phalguni': 'उत्तराफाल्गुनी',
+  'Hasta': 'हस्त', 'Chitra': 'चित्रा', 'Swati': 'स्वाति',
+  'Vishakha': 'विशाखा', 'Anuradha': 'अनुराधा', 'Jyeshtha': 'ज्येष्ठा',
+  'Moola': 'मूल', 'Purva Ashadha': 'पूर्वाषाढ़ा', 'Uttara Ashadha': 'उत्तराषाढ़ा',
+  'Shravana': 'श्रवण', 'Dhanishta': 'धनिष्ठा', 'Shatabhisha': 'शतभिषा',
+  'Purva Bhadrapada': 'पूर्वाभाद्रपद', 'Uttara Bhadrapada': 'उत्तराभाद्रपद', 'Revati': 'रेवती'
+};
+
+function localizeNakshatra(n) {
+  if (!n) return '-';
+  return currentLanguage === 'hi' ? (NAKSHATRAS_HI[n] || n) : n;
+}
+
 // ── State ──
 
 let chartData = null;
@@ -266,7 +283,7 @@ let currentCityResults = [];
 let activeCityIndex = -1;
 
 // ── Browser Cache Configuration (1 Hour TTL) ──
-const CACHE_KEY = 'jyotish_session_v3';
+const CACHE_KEY = 'jyotish_session_v4';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour = 3,600,000 ms
 const citySearchCache = new Map();
 
@@ -573,8 +590,8 @@ function renderResultsHeader() {
   const headerTitle = isHi ? `${esc(d.name)} की जन्म कुण्डली` : `${esc(d.name)}'s Kundali`;
   const lagnaLabel = isHi ? 'लग्न' : 'Lagna';
   const moonLabel = isHi ? 'चन्द्र राशि' : 'Moon';
-  const ascSign = isHi ? `${localizeSign(d.ascendant.sign)} (${d.ascendant.sign_english})` : `${d.ascendant.sign} (${d.ascendant.sign_english})`;
-  const moonSign = moon ? (isHi ? `${localizeSign(moon.sign)}` : moon.sign) : '';
+  const ascSign = isHi ? localizeSign(d.ascendant.sign) : `${d.ascendant.sign} (${d.ascendant.sign_english})`;
+  const moonSign = moon ? (isHi ? localizeSign(moon.sign) : moon.sign) : '';
 
   $('#results-header').innerHTML=`
     <h2>${headerTitle} ${cacheNotice}</h2>
@@ -722,15 +739,16 @@ function renderPlanetsTab() {
     const dl = tr.dignities?.[p.dignity] || (p.dignity==='own_sign'?'Own Sign':p.dignity.charAt(0).toUpperCase()+p.dignity.slice(1));
     const pName = isHi ? (PLANETS_HI[p.name] || p.vedic_name || p.name) : (p.vedic_name || p.name);
     const signDisplay = isHi
-      ? `${localizeSign(p.sign)} <span style="color:#8e8e9e;font-size:0.78rem">(${p.sign_english})</span>`
+      ? localizeSign(p.sign)
       : `${p.sign} <span style="color:#8e8e9e;font-size:0.78rem">(${p.sign_english})</span>`;
     const navSign = p.navamsa?.sign ? (isHi ? localizeSign(p.navamsa.sign) : p.navamsa.sign) : '-';
+    const nakDisplay = isHi ? localizeNakshatra(p.nakshatra?.name) : (p.nakshatra?.name || '-');
 
     return `<tr>
       <td><span style="color:${color};font-weight:600;margin-right:6px">${p.symbol}</span>${pName}${retro}</td>
       <td>${signDisplay}</td>
       <td style="font-weight:500">${p.house}</td><td>${p.degree_in_sign}°</td>
-      <td>${p.nakshatra?.name||'-'}</td><td>${p.nakshatra?.pada||'-'}</td>
+      <td>${nakDisplay}</td><td>${p.nakshatra?.pada||'-'}</td>
       <td><span class="badge ${dc}">${dl}</span></td><td>${navSign}</td>
     </tr>`;
   }).join('');
@@ -819,8 +837,12 @@ function renderYogaDoshaTab() {
   const yc = chartData.yogas.length===0 ? `<p style="color:#8e8e9e">${noYogaText}</p>`
     : chartData.yogas.map(y => {
       const pList = isHi ? y.planets.map(p => localizePlanet(p)).join(', ') : y.planets.join(', ');
-      return `<div class="yd-card yoga-card"><h4>${y.name}<span class="yd-type">${y.type}</span></h4>
-      <p>${y.description}</p><p class="yd-meta">${planetsLabel}: ${pList} &middot; ${strengthLabel}: ${y.strength}</p></div>`;
+      const yName = isHi && y.name_hi ? y.name_hi : y.name;
+      const yType = isHi && y.type_hi ? y.type_hi : y.type;
+      const yDesc = isHi && y.description_hi ? y.description_hi : y.description;
+      const yStr = isHi && y.strength_hi ? y.strength_hi : y.strength;
+      return `<div class="yd-card yoga-card"><h4>${yName}<span class="yd-type">${yType}</span></h4>
+      <p>${yDesc}</p><p class="yd-meta">${planetsLabel}: ${pList} &middot; ${strengthLabel}: ${yStr}</p></div>`;
     }).join('');
 
   const dc = chartData.doshas.length===0 ? `<p style="color:#8e8e9e">${noDoshaText}</p>`
@@ -828,11 +850,16 @@ function renderYogaDoshaTab() {
       const cls=!d.present?'dosha-absent':d.severity==='cancelled'?'dosha-cancelled':'dosha-present';
       const sl=!d.present?(isHi ? '✓ अनुपस्थित' : '✓ Absent')
         :d.severity==='cancelled'?(isHi ? '↩ भंग / निष्फल' : '↩ Cancelled')
-        :`● ${d.severity}`;
-      const eff=d.present&&d.effects?`<p style="margin-top:8px"><strong style="font-size:0.8rem">${effectsLabel}</strong> ${d.effects}</p>`:'';
-      const can=d.cancellation?`<p class="cancellation">↩ ${d.cancellation}</p>`:'';
-      const rem=d.present&&d.remedies?`<div class="remedies"><strong>${remediesLabel}</strong><ul>${d.remedies.map(r=>`<li>${r}</li>`).join('')}</ul></div>`:'';
-      return `<div class="yd-card ${cls}"><h4>${d.name}<span class="yd-type">${sl}</span></h4><p>${d.description}</p>${eff}${can}${rem}</div>`;
+        :`● ${isHi ? (d.severity==='high'?'तीव्र प्रभाव':d.severity==='moderate'?'मध्यम प्रभाव':'सामान्य'):d.severity}`;
+      const dName = isHi && d.name_hi ? d.name_hi : d.name;
+      const dDesc = isHi && d.description_hi ? d.description_hi : d.description;
+      const dEff = isHi && d.effects_hi ? d.effects_hi : d.effects;
+      const dRem = isHi && d.remedies_hi ? d.remedies_hi : d.remedies;
+      const dCan = isHi && d.cancellation_hi ? d.cancellation_hi : d.cancellation;
+      const eff=d.present&&dEff?`<p style="margin-top:8px"><strong style="font-size:0.8rem">${effectsLabel}</strong> ${dEff}</p>`:'';
+      const can=dCan?`<p class="cancellation">↩ ${dCan}</p>`:'';
+      const rem=d.present&&dRem?`<div class="remedies"><strong>${remediesLabel}</strong><ul>${dRem.map(r=>`<li>${r}</li>`).join('')}</ul></div>`:'';
+      return `<div class="yd-card ${cls}"><h4>${dName}<span class="yd-type">${sl}</span></h4><p>${dDesc}</p>${eff}${can}${rem}</div>`;
     }).join('');
 
   return `<div class="yd-grid">

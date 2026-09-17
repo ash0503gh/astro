@@ -54,9 +54,19 @@ async function apiChart(data) {
 async function apiAIReading(data) {
   const res = await fetch('/api/ai-reading', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ name:data.name, birth_date:data.birthDate, birth_time:data.birthTime, birth_city:data.birthCity }),
+    body: JSON.stringify({
+      name: data.name,
+      birth_date: data.birthDate,
+      birth_time: data.birthTime,
+      birth_city: data.birthCity,
+      latitude: chartData?.birth_info?.latitude,
+      longitude: chartData?.birth_info?.longitude,
+    }),
   });
-  if (!res.ok) throw new Error('AI reading request failed');
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({detail:'AI reading request failed'}));
+    throw new Error(e.detail || e.reading?.error || `HTTP ${res.status}`);
+  }
   return res.json();
 }
 
@@ -361,8 +371,12 @@ function renderAITab() {
   if (!aiReading) return `<div class="card ai-prompt"><h3>✦ AI-Powered Deep Reading</h3>
     <p>Comprehensive personalized interpretation covering personality, career, relationships, health, spirituality, and current planetary period.</p>
     <button class="btn btn-primary" onclick="handleAIGenerate()"><span>Generate AI Reading</span><span class="btn-icon">→</span></button>
-    <p class="hint">Powered by Claude AI</p></div>`;
-  if (aiReading.error) return `<div class="card"><div class="error-box" style="border:none;margin:0"><p>${aiReading.error}</p></div></div>`;
+    <p class="hint">Powered by Google Gemini</p></div>`;
+  if (aiReading.error) return `<div class="card">
+    <div class="card-title">✦ AI-Powered Deep Reading</div>
+    <div class="error-box" style="border:none;margin:0 0 16px 0"><p>${esc(aiReading.error)}</p></div>
+    <button class="btn btn-primary" onclick="handleAIGenerate()"><span>Try Again</span><span class="btn-icon">→</span></button>
+  </div>`;
   const sections=aiReading.sections||{};
   let content='';
   if (Object.keys(sections).length>0) {

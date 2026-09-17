@@ -11,6 +11,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from astro_engine import compute_chart
 from dasha import compute_vimshottari_dasha
 from yogas import detect_yogas
@@ -91,7 +97,7 @@ async def api_chart(data: BirthInput):
 
 @app.post("/api/ai-reading")
 async def api_ai_reading(data: BirthInput):
-    """AI-powered deep chart reading via Claude."""
+    """AI-powered deep chart reading via Google Gemini."""
     try:
         chart = compute_chart(
             birth_date=data.birth_date,

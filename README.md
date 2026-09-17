@@ -10,13 +10,13 @@ Full-stack Vedic astrology web app. FastAPI serves the API and static frontend f
 - Yoga detection (Panch Mahapurusha, Gajakesari, Budhaditya, Raj, Dhana, and more)
 - Dosha analysis with cancellation checks and remedies
 - Rule-based reading for every placement
-- AI deep reading powered by Claude
+- AI deep reading powered by Google Gemini (gemini-2.5-flash)
 
 ## Local Development
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...   # optional, for AI readings
+cp .env.example .env                 # edit and add your GEMINI_API_KEY
 uvicorn main:app --reload
 ```
 
@@ -28,7 +28,7 @@ Open `http://localhost:8000`.
 2. Create a **Web Service** on Render → connect the repo
 3. Build command: `pip install -r requirements.txt`
 4. Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variable: `ANTHROPIC_API_KEY`
+5. Add environment variable: `GEMINI_API_KEY` (and optional `GEMINI_MODEL=gemini-2.5-flash`)
 
 ## Files
 
@@ -40,7 +40,7 @@ Open `http://localhost:8000`.
 | `yogas.py` | Yoga detection (10 types) |
 | `doshas.py` | Dosha detection (6 types with cancellations) |
 | `interpretations.py` | Rule-based chart readings |
-| `ai_reader.py` | Claude API integration for deep readings |
+| `ai_reader.py` | Google Gemini API integration for deep readings |
 | `index.html` | Frontend page |
 | `style.css` | Premium dark theme |
 | `app.js` | Frontend logic (vanilla JS) |

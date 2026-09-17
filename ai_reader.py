@@ -1,15 +1,17 @@
 """
-AI-Powered Deep Chart Reading using Anthropic Claude API.
+AI-Powered Deep Chart Reading using Google Gemini API.
 Generates personalized, insightful interpretations of the birth chart.
 """
 
 import os
+import re
 import httpx
 from typing import Optional
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODEL = "claude-sonnet-5"
-API_URL = "https://api.anthropic.com/v1/messages"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+FALLBACK_MODELS = [DEFAULT_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def _format_chart_for_prompt(
@@ -98,11 +100,12 @@ async def generate_ai_reading(
     yogas: list,
     doshas: list,
 ) -> dict:
-    """Generate a deep AI reading of the birth chart using Claude."""
+    """Generate a deep AI reading of the birth chart using Google Gemini."""
 
-    if not ANTHROPIC_API_KEY:
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
         return {
-            "error": "AI reading unavailable — ANTHROPIC_API_KEY not configured.",
+            "error": "AI reading unavailable — GEMINI_API_KEY not configured on backend.",
             "sections": {},
         }
 
@@ -115,7 +118,7 @@ Analyze the birth chart provided and give a comprehensive reading. Be insightful
 specific to the chart combinations, and balanced — highlight both strengths and
 areas requiring attention.
 
-Structure your response in these sections:
+Structure your response with these exact markdown headers:
 
 ## Personality & Core Nature
 Analyze the Ascendant, its lord, and the Moon sign to describe the native's personality.
@@ -148,96 +151,140 @@ Use both Sanskrit terms and English explanations. Be authentic to the Jyotish tr
 while being accessible. Avoid generic statements — every insight should be traceable
 to a specific chart combination."""
 
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                API_URL,
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": MODEL,
-                    "max_tokens": 16000,
-                    "thinking": {
-                        "type": "adaptive",
-                    },
-                    "system": system_prompt,
-                    "messages": [
-                        {"role": "user", "content": chart_text}
-                    ],
-                },
-            )
-
-            if response.status_code != 200:
-                err_body = response.text
-                try:
-                    err_json = response.json()
-                    err_body = err_json.get("error", {}).get("message", err_body)
-                except Exception:
-                    pass
-                return {
-                    "error": f"AI API error ({response.status_code}): {err_body}",
-                    "sections": {},
-                }
-
-            data = response.json()
-            content = data.get("content", [])
-
-            # Extract text from all text blocks (skip thinking blocks)
-            text_parts = []
-            for block in content:
-                if block.get("type") == "text" and block.get("text", "").strip():
-                    text_parts.append(block["text"])
-
-            text = "\n".join(text_parts)
-
-            # If no text found, try to extract from any block with text
-            if not text.strip():
-                for block in content:
-                    if "text" in block and block["text"].strip():
-                        text_parts.append(block["text"])
-                text = "\n".join(text_parts)
-
-            # Final fallback: return raw response for debugging
-            if not text.strip():
-                return {
-                    "error": f"AI returned empty text. Response had {len(content)} content blocks: {[b.get('type') for b in content]}",
-                    "sections": {},
-                }
-
-            # Parse sections
-            sections = _parse_sections(text)
-
-            return {
-                "full_text": text,
-                "sections": sections,
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": chart_text}]
             }
-
-    except Exception as e:
-        return {
-            "error": f"AI reading failed: {str(e)}",
-            "sections": {},
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 8192
         }
+    }
+
+    # Try configured model with fallback support
+    models_to_try = []
+    for m in FALLBACK_MODELS:
+        if m and m not in models_to_try:
+            models_to_try.append(m)
+
+    last_error = ""
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for model in models_to_try:
+            url = f"{GEMINI_BASE_URL}/{model}:generateContent?key={api_key}"
+            try:
+                response = await client.post(
+                    url,
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": api_key,
+                    },
+                    json=payload,
+                )
+
+                if response.status_code == 404:
+                    # Model not available in this tier/region, try next fallback
+                    last_error = f"Model '{model}' not found (404)."
+                    continue
+
+                if response.status_code != 200:
+                    err_body = response.text
+                    try:
+                        err_json = response.json()
+                        err_body = err_json.get("error", {}).get("message", err_body)
+                    except Exception:
+                        pass
+                    return {
+                        "error": f"Gemini API error ({response.status_code}): {err_body}",
+                        "sections": {},
+                    }
+
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    prompt_feedback = data.get("promptFeedback", {})
+                    block_reason = prompt_feedback.get("blockReason")
+                    if block_reason:
+                        return {
+                            "error": f"AI generation blocked by safety filters: {block_reason}",
+                            "sections": {},
+                        }
+                    return {
+                        "error": "Gemini returned an empty response.",
+                        "sections": {},
+                    }
+
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                text = "\n".join(part.get("text", "") for part in parts if "text" in part)
+
+                if not text.strip():
+                    return {
+                        "error": "Gemini generated no text content.",
+                        "sections": {},
+                    }
+
+                # Parse sections
+                sections = _parse_sections(text)
+
+                return {
+                    "full_text": text,
+                    "sections": sections,
+                    "model_used": model,
+                }
+
+            except httpx.TimeoutException:
+                return {
+                    "error": "Gemini API request timed out (60s). Please try again.",
+                    "sections": {},
+                }
+            except Exception as e:
+                last_error = str(e)
+                continue
+
+    return {
+        "error": f"AI reading failed: {last_error or 'Unable to contact Gemini API'}",
+        "sections": {},
+    }
 
 
 def _parse_sections(text: str) -> dict:
-    """Parse the AI response into sections based on ## headers."""
+    """Parse the AI response into sections based on markdown headers."""
     sections = {}
     current_section = "introduction"
     current_content = []
 
     for line in text.split("\n"):
-        if line.startswith("## "):
-            if current_content:
-                sections[current_section] = "\n".join(current_content).strip()
-            current_section = line[3:].strip().lower().replace(" ", "_").replace("&", "and")
-            current_content = []
-        else:
-            current_content.append(line)
+        match = re.match(r"^#{1,3}\s+(?:[0-9]+[\.\)]\s*)?(.+)", line)
+        if match:
+            header_raw = match.group(1).strip(" :*#")
+            if len(header_raw) > 2:
+                if current_content:
+                    sections[current_section] = "\n".join(current_content).strip()
+                normalized_key = (
+                    header_raw.lower()
+                    .replace("&", "and")
+                    .replace("/", "_")
+                    .replace("-", "_")
+                )
+                normalized_key = re.sub(r"[^\w\s]", "", normalized_key)
+                normalized_key = re.sub(r"\s+", "_", normalized_key).strip("_")
+                current_section = normalized_key
+                current_content = []
+                continue
+        current_content.append(line)
 
     if current_content:
         sections[current_section] = "\n".join(current_content).strip()
+
+    # Drop introduction if empty
+    if "introduction" in sections and not sections["introduction"]:
+        del sections["introduction"]
 
     return sections

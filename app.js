@@ -316,6 +316,7 @@ let aiReading = null;
 let aiLoading = false;
 let chatHistory = [];
 let chatLoading = false;
+let chatRequestId = 0;
 let selectedCity = null;
 let cityDebounceTimer = null;
 let currentCityResults = [];
@@ -590,7 +591,7 @@ async function handleSubmit(e) {
   show($('#section-loading')); hide($('#section-results'));
   try {
     chartData = await apiChart(birthInput);
-    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false; chatHistory=[]; chatLoading=false;
+    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false; chatHistory=[]; chatLoading=false; chatRequestId++;
     renderResults();
     saveSessionToCache();
   } catch(err) { showError(err.message); }
@@ -598,7 +599,7 @@ async function handleSubmit(e) {
 
 function handleReset() {
   clearSessionCache();
-  chartData=null; birthInput=null; aiReading=null; chatHistory=[]; chatLoading=false; selectedCity=null;
+  chartData=null; birthInput=null; aiReading=null; chatHistory=[]; chatLoading=false; chatRequestId++; selectedCity=null;
   const statusIcon = $('#city-status-icon');
   if (statusIcon) { statusIcon.className = 'city-status-icon'; statusIcon.innerHTML = ''; }
   const hint = $('#city-hint');
@@ -1162,11 +1163,13 @@ async function handleChatSend(questionOverride) {
   });
 
   chatLoading = true;
+  const reqId = ++chatRequestId;
   renderTabContent();
   scrollChatToBottom();
 
   try {
     const data = await apiAskJyotishi(question);
+    if (reqId !== chatRequestId) return;
     const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (data.error && !data.answer) {
       chatHistory.push({
@@ -1185,6 +1188,7 @@ async function handleChatSend(questionOverride) {
     }
     saveSessionToCache();
   } catch (err) {
+    if (reqId !== chatRequestId) return;
     const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
     chatHistory.push({
       role: 'assistant',
@@ -1192,11 +1196,13 @@ async function handleChatSend(questionOverride) {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
   } finally {
-    chatLoading = false;
-    renderTabContent();
-    scrollChatToBottom();
-    const afterInput = document.getElementById('chat-input-field');
-    if (afterInput) afterInput.focus();
+    if (reqId === chatRequestId) {
+      chatLoading = false;
+      renderTabContent();
+      scrollChatToBottom();
+      const afterInput = document.getElementById('chat-input-field');
+      if (afterInput) afterInput.focus();
+    }
   }
 }
 

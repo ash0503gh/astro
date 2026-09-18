@@ -313,7 +313,7 @@ Respond following these strict guidelines:
         "contents": contents,
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 4096,
         }
     }
 

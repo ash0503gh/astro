@@ -27,6 +27,7 @@ const TRANSLATIONS = {
       yoga: 'Yogas & Doshas',
       reading: 'Reading',
       ai: '✦ AI Reading',
+      chat: '💬 Ask Jyotishi',
     },
     chart_rashi_title: 'Rashi Chart (D1)',
     chart_navamsa_title: 'Navamsa Chart (D9)',
@@ -84,6 +85,23 @@ const TRANSLATIONS = {
       current_period_analysis: 'Current Period Analysis',
       key_recommendations: 'Key Recommendations',
     },
+    chat_title: '💬 Ask Jyotishi — Personal Vedic Q&A',
+    chat_desc: 'Ask direct questions about your career, timing, investments, transits, or relationships. Grounded in your natal chart, Vimshottari dasha, and real-time transits.',
+    chat_preset_title: 'Quick Questions:',
+    chat_presets: [
+      'Will I change jobs or advance in my career in the next 6 months?',
+      'What are the best upcoming months for financial investment or starting a venture?',
+      'What planetary transit is having the strongest impact on my life right now?'
+    ],
+    chat_placeholder: 'Type your astrological question (e.g. When is the best time for job change?)…',
+    chat_send: 'Ask Jyotishi',
+    chat_loading: 'Consulting planetary positions & transits…',
+    chat_error: 'Unable to get answer from Jyotishi. Please try again.',
+    chat_clear: 'Clear Chat',
+    chat_empty: 'Ask any specific question or click one of the quick questions below to begin your consultation.',
+    chat_you: 'You',
+    chat_jyotishi: 'Jyotishi (AI)',
+    chat_disclaimer: 'Answers are grounded in your calculated Vedic chart, active dasha periods, and real-time transits.',
     dignities: {
       exalted: 'Exalted',
       own_sign: 'Own Sign',
@@ -118,6 +136,7 @@ const TRANSLATIONS = {
       yoga: 'योग एवं दोष',
       reading: 'फलादेश',
       ai: '✦ एआई फलादेश',
+      chat: '💬 ज्योतिषी से पूछें',
     },
     chart_rashi_title: 'लग्न राशि चक्र (D1)',
     chart_navamsa_title: 'नवांश चक्र (D9)',
@@ -175,6 +194,23 @@ const TRANSLATIONS = {
       current_period_analysis: 'वर्तमान महादशा एवं दशा विश्लेषण',
       key_recommendations: 'प्रमुख वैदिक उपाय एवं समाधान',
     },
+    chat_title: '💬 ज्योतिषी से पूछें — प्रत्यक्ष वैदिक प्रश्नोत्तरी',
+    chat_desc: 'करियर, समय चक्र, निवेश, गोचर अथवा संबंधों से जुड़े विशिष्ट प्रश्न पूछें। आपकी कुण्डली, विंशोत्तरी दशा व तात्कालिक गोचर पर आधारित प्रत्यक्ष व प्रमाणिक उत्तर।',
+    chat_preset_title: 'त्वरित प्रश्न:',
+    chat_presets: [
+      'क्या अगले 6 महीनों में मेरे करियर या नौकरी में बदलाव के योग हैं?',
+      'आर्थिक निवेश अथवा नया कार्य प्रारम्भ करने हेतु कौन से माह सर्वाधिक अनुकूल हैं?',
+      'वर्तमान में किस ग्रह के गोचर का मेरे जीवन पर सर्वाधिक प्रभाव पड़ रहा है?'
+    ],
+    chat_placeholder: 'अपना ज्योतिषीय प्रश्न यहाँ लिखें (उदा. क्या अगले 6 महीनों में नौकरी बदलेगी?)…',
+    chat_send: 'प्रश्न पूछें',
+    chat_loading: 'ग्रह स्थिति एवं तात्कालिक गोचर का विश्लेषण जारी है…',
+    chat_error: 'ज्योतिषी से उत्तर प्राप्त करने में त्रुटि। कृपया पुनः प्रयास करें।',
+    chat_clear: 'वार्तालाप साफ़ करें',
+    chat_empty: 'नीचे दिए गए त्वरित प्रश्नों में से चुनें या अपना विशिष्ट प्रश्न लिखकर परामर्श प्रारम्भ करें।',
+    chat_you: 'आप',
+    chat_jyotishi: 'ज्योतिषी (एआई)',
+    chat_disclaimer: 'समस्त उत्तर आपकी जन्म कुण्डली, सक्रिय दशा एवं तात्कालिक गोचर के सूक्ष्म विश्लेषण पर आधारित हैं।',
     dignities: {
       exalted: 'उच्च',
       own_sign: 'स्वराशि',
@@ -209,6 +245,7 @@ const TABS = [
   { id:'yoga',    label:'Yogas & Doshas' },
   { id:'reading', label:'Reading' },
   { id:'ai',      label:'✦ AI Reading' },
+  { id:'chat',    label:'💬 Ask Jyotishi' },
 ];
 
 const SIGNS_HI = {
@@ -277,13 +314,15 @@ let activeTab = 'chart';
 let selectedDasha = null;
 let aiReading = null;
 let aiLoading = false;
+let chatHistory = [];
+let chatLoading = false;
 let selectedCity = null;
 let cityDebounceTimer = null;
 let currentCityResults = [];
 let activeCityIndex = -1;
 
 // ── Browser Cache Configuration (1 Hour TTL) ──
-const CACHE_KEY = 'jyotish_session_v4';
+const CACHE_KEY = 'jyotish_session_v5';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour = 3,600,000 ms
 const citySearchCache = new Map();
 
@@ -291,6 +330,8 @@ const citySearchCache = new Map();
 try {
   localStorage.removeItem('jyotish_session_v1');
   localStorage.removeItem('jyotish_session_v2');
+  localStorage.removeItem('jyotish_session_v3');
+  localStorage.removeItem('jyotish_session_v4');
   localStorage.removeItem('jyotish_session_cache');
 } catch (e) {}
 
@@ -386,6 +427,41 @@ async function apiAIReading(data) {
   return res.json();
 }
 
+async function apiAskJyotishi(question) {
+  const recentHistory = chatHistory.slice(-6).map(m => ({
+    role: m.role,
+    content: m.content
+  }));
+
+  const payload = {
+    name: birthInput.name,
+    birth_date: birthInput.birthDate,
+    birth_time: birthInput.birthTime,
+    birth_city: birthInput.birthCity,
+    latitude: chartData?.birth_info?.latitude,
+    longitude: chartData?.birth_info?.longitude,
+    chart: chartData,
+    dashas: chartData?.dashas || [],
+    yogas: chartData?.yogas || [],
+    doshas: chartData?.doshas || [],
+    question: question,
+    history: recentHistory,
+    language: currentLanguage,
+  };
+
+  const res = await fetch('/api/ask-jyotishi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({ detail: 'Failed to consult Jyotishi' }));
+    throw new Error(e.detail || e.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── Session Cache Helpers (1 Hour TTL) ──
 
 function saveSessionToCache() {
@@ -398,6 +474,7 @@ function saveSessionToCache() {
       selectedCity,
       chartData,
       aiReading,
+      chatHistory,
       activeTab,
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
@@ -433,6 +510,7 @@ function loadSessionFromCache() {
     selectedCity = data.selectedCity || null;
     chartData = data.chartData || null;
     aiReading = data.aiReading || null;
+    chatHistory = data.chatHistory || [];
     activeTab = data.activeTab || 'chart';
 
     // Populate form fields so they match the cached chart
@@ -512,7 +590,7 @@ async function handleSubmit(e) {
   show($('#section-loading')); hide($('#section-results'));
   try {
     chartData = await apiChart(birthInput);
-    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false;
+    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false; chatHistory=[]; chatLoading=false;
     renderResults();
     saveSessionToCache();
   } catch(err) { showError(err.message); }
@@ -520,7 +598,7 @@ async function handleSubmit(e) {
 
 function handleReset() {
   clearSessionCache();
-  chartData=null; birthInput=null; aiReading=null; selectedCity=null;
+  chartData=null; birthInput=null; aiReading=null; chatHistory=[]; chatLoading=false; selectedCity=null;
   const statusIcon = $('#city-status-icon');
   if (statusIcon) { statusIcon.className = 'city-status-icon'; statusIcon.innerHTML = ''; }
   const hint = $('#city-hint');
@@ -544,6 +622,13 @@ function handleTabClick(tabId) {
   activeTab=tabId;
   renderTabs();
   renderTabContent();
+  if (tabId === 'chat') {
+    scrollChatToBottom();
+    setTimeout(() => {
+      const inp = document.getElementById('chat-input-field');
+      if (inp) inp.focus();
+    }, 100);
+  }
   saveSessionToCache();
 }
 
@@ -616,6 +701,7 @@ function renderTabContent() {
     case 'yoga':    el.innerHTML=renderYogaDoshaTab(); break;
     case 'reading': el.innerHTML=renderReadingTab(); break;
     case 'ai':      el.innerHTML=renderAITab(); break;
+    case 'chat':    el.innerHTML=renderChatTab(); break;
   }
 }
 
@@ -917,6 +1003,207 @@ function renderAITab() {
   return `<div class="card"><div class="card-title">${tr.ai_title}</div>${content||`<p style="color:#8e8e9e">${isHi ? 'कोई सामग्री उपलब्ध नहीं है।' : 'No content.'}</p>`}
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e8e4de">
       <button class="btn btn-ghost" onclick="handleAIGenerate()">${tr.ai_regenerate}</button></div></div>`;
+}
+
+// ── Ask Jyotishi (Astrological Q&A) ──
+
+function renderChatTab() {
+  const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+  const isHi = currentLanguage === 'hi';
+  const presets = tr.chat_presets || [];
+
+  let messagesHtml = '';
+  if (chatHistory.length === 0 && !chatLoading) {
+    messagesHtml = `
+      <div class="chat-empty-state">
+        <div class="chat-empty-icon">🕉️</div>
+        <h4>${tr.chat_title}</h4>
+        <p>${tr.chat_desc}</p>
+        <p class="chat-empty-hint">${tr.chat_empty}</p>
+      </div>
+    `;
+  } else {
+    messagesHtml = chatHistory.map((msg) => {
+      const isUser = msg.role === 'user';
+      const senderLabel = isUser ? tr.chat_you : tr.chat_jyotishi;
+      const bubbleClass = isUser ? 'chat-bubble-user' : 'chat-bubble-jyotishi';
+      const formattedContent = isUser ? `<p class="chat-user-text">${esc(msg.content)}</p>` : formatAIContent(msg.content);
+      const timeStr = msg.timestamp ? `<span class="chat-time">${esc(msg.timestamp)}</span>` : '';
+      const avatar = isUser ? '👤' : '🕉️';
+      const transitBadge = (!isUser && msg.transits_used) 
+        ? `<span class="chat-transit-badge">${isHi ? '🪐 तात्कालिक गोचर प्रयुक्त' : '🪐 Real-Time Transits Applied'}</span>` 
+        : '';
+
+      return `
+        <div class="chat-row ${isUser ? 'row-user' : 'row-jyotishi'}">
+          <div class="chat-avatar">${avatar}</div>
+          <div class="chat-bubble ${bubbleClass}">
+            <div class="chat-bubble-header">
+              <span class="chat-sender">${senderLabel}</span>
+              <div class="chat-header-meta">
+                ${transitBadge}
+                ${timeStr}
+              </div>
+            </div>
+            <div class="chat-bubble-body">
+              ${formattedContent}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (chatLoading) {
+      messagesHtml += `
+        <div class="chat-row row-jyotishi">
+          <div class="chat-avatar">🕉️</div>
+          <div class="chat-bubble chat-bubble-jyotishi chat-typing">
+            <div class="chat-bubble-header">
+              <span class="chat-sender">${tr.chat_jyotishi}</span>
+            </div>
+            <div class="chat-bubble-body">
+              <div class="typing-indicator">
+                <span></span><span></span><span></span>
+              </div>
+              <span class="typing-text">${tr.chat_loading}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  const chipsHtml = presets.map((q, idx) => `
+    <button type="button" class="chat-chip" onclick="handlePresetQuestion(${idx})" ${chatLoading ? 'disabled' : ''}>
+      <span class="chip-sparkle">✦</span>
+      <span class="chip-text">${esc(q)}</span>
+    </button>
+  `).join('');
+
+  return `
+    <div class="card chat-card">
+      <div class="chat-header-bar">
+        <div>
+          <div class="card-title" style="margin-bottom:4px;">${tr.chat_title}</div>
+          <p class="chat-subtitle">${tr.chat_desc}</p>
+        </div>
+        ${chatHistory.length > 0 ? `
+          <button type="button" class="btn btn-ghost chat-clear-btn" onclick="handleClearChat()" ${chatLoading ? 'disabled' : ''}>
+            ${tr.chat_clear}
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Quick Preset Starter Questions -->
+      <div class="chat-presets-wrap">
+        <div class="chat-presets-label">${tr.chat_preset_title}</div>
+        <div class="chat-chips-grid">
+          ${chipsHtml}
+        </div>
+      </div>
+
+      <!-- Messages Stream Container -->
+      <div class="chat-messages-wrap" id="chat-messages-container">
+        ${messagesHtml}
+      </div>
+
+      <!-- Chat Input Bar -->
+      <form class="chat-input-bar" onsubmit="event.preventDefault(); handleChatSend();">
+        <input 
+          type="text" 
+          id="chat-input-field" 
+          class="chat-input" 
+          placeholder="${tr.chat_placeholder}" 
+          autocomplete="off"
+          ${chatLoading ? 'disabled' : ''}
+          onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); handleChatSend(); }"
+        />
+        <button type="submit" class="btn btn-primary chat-send-btn" id="btn-chat-send" ${chatLoading ? 'disabled' : ''}>
+          <span>${tr.chat_send}</span>
+          <span class="btn-icon">➔</span>
+        </button>
+      </form>
+      <div class="chat-disclaimer">${tr.chat_disclaimer}</div>
+    </div>
+  `;
+}
+
+function scrollChatToBottom() {
+  setTimeout(() => {
+    const container = document.getElementById('chat-messages-container');
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, 60);
+}
+
+function handlePresetQuestion(index) {
+  const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+  const presets = tr.chat_presets || [];
+  const q = presets[index];
+  if (q) {
+    handleChatSend(q);
+  }
+}
+
+async function handleChatSend(questionOverride) {
+  if (chatLoading || !chartData || !birthInput) return;
+  const inputEl = document.getElementById('chat-input-field');
+  const question = (questionOverride || inputEl?.value || '').trim();
+  if (!question) return;
+
+  if (inputEl) inputEl.value = '';
+
+  const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  chatHistory.push({
+    role: 'user',
+    content: question,
+    timestamp: nowTime,
+  });
+
+  chatLoading = true;
+  renderTabContent();
+  scrollChatToBottom();
+
+  try {
+    const data = await apiAskJyotishi(question);
+    const respTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (data.error && !data.answer) {
+      chatHistory.push({
+        role: 'assistant',
+        content: data.error,
+        timestamp: respTime,
+      });
+    } else {
+      chatHistory.push({
+        role: 'assistant',
+        content: data.answer || 'No response generated.',
+        model: data.model,
+        transits_used: data.transits_used,
+        timestamp: respTime,
+      });
+    }
+    saveSessionToCache();
+  } catch (err) {
+    const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+    chatHistory.push({
+      role: 'assistant',
+      content: `${tr.chat_error} (${err.message})`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+  } finally {
+    chatLoading = false;
+    renderTabContent();
+    scrollChatToBottom();
+    const afterInput = document.getElementById('chat-input-field');
+    if (afterInput) afterInput.focus();
+  }
+}
+
+function handleClearChat() {
+  chatHistory = [];
+  saveSessionToCache();
+  renderTabContent();
 }
 
 // ── Helpers ──

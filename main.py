@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 try:
     from dotenv import load_dotenv
@@ -23,6 +23,7 @@ from yogas import detect_yogas
 from doshas import detect_doshas
 from interpretations import generate_basic_reading
 from ai_reader import generate_ai_reading
+from qa_engine import ask_jyotishi
 
 BASE_DIR = Path(__file__).parent
 
@@ -46,6 +47,28 @@ class BirthInput(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     timezone_offset: Optional[float] = None
+    language: Optional[str] = "en"
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AskJyotishiInput(BaseModel):
+    name: str
+    birth_date: Optional[str] = None
+    birth_time: Optional[str] = None
+    birth_city: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone_offset: Optional[float] = None
+    chart: Optional[dict] = None
+    dashas: Optional[list] = None
+    yogas: Optional[list] = None
+    doshas: Optional[list] = None
+    question: str
+    history: Optional[List[ChatMessage]] = None
     language: Optional[str] = "en"
 
 
@@ -120,6 +143,52 @@ async def api_ai_reading(data: BirthInput):
             language=data.language or "en",
         )
         return {"reading": reading}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ask-jyotishi")
+async def api_ask_jyotishi(data: AskJyotishiInput):
+    """Interactive Astrological Q&A powered by Gemini 2.5 Flash."""
+    try:
+        if not data.chart:
+            if not (data.birth_date and data.birth_time and data.birth_city):
+                raise HTTPException(status_code=400, detail="Missing chart or birth details")
+            chart = compute_chart(
+                birth_date=data.birth_date,
+                birth_time=data.birth_time,
+                birth_city=data.birth_city,
+                latitude=data.latitude,
+                longitude=data.longitude,
+                tz_offset=data.timezone_offset,
+            )
+            dashas = compute_vimshottari_dasha(chart["moon_longitude"], data.birth_date)
+            yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
+            doshas_list = detect_doshas(chart["planets"], chart["houses"])
+        else:
+            chart = data.chart
+            dashas = data.dashas if data.dashas is not None else chart.get("dashas", [])
+            yogas = data.yogas if data.yogas is not None else chart.get("yogas", [])
+            doshas_list = data.doshas if data.doshas is not None else chart.get("doshas", [])
+
+        history_list = [
+            {"role": msg.role, "content": msg.content}
+            for msg in (data.history or [])
+        ]
+
+        result = await ask_jyotishi(
+            name=data.name,
+            chart=chart,
+            dashas=dashas,
+            yogas=yogas,
+            doshas=doshas_list,
+            question=data.question,
+            history=history_list,
+            language=data.language or "en",
+        )
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

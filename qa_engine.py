@@ -19,7 +19,7 @@ except ImportError:
     swe = None
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.getenv("GEMINI_QA_MODEL") or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FALLBACK_MODELS = [DEFAULT_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -274,6 +274,7 @@ async def ask_jyotishi(
 4. आगामी 6 से 12 महीनों के संबंध में समय-सीमा (Timeframe / Dates) स्पष्ट करें (जैसे अमुक माह से अमुक माह तक)।
 5. यदि आवश्यक हो, तो 1-2 व्यावहारिक और सटीक वैदिक उपाय (मंत्र, दान, व्रत) सुझाएं।
 6. शुद्ध, गरिमामयी देवनागरी हिन्दी भाषा का प्रयोग करें। किसी भी शब्द के लिए कच्चे मार्कडाउन तारों (raw asterisks) का अनुचित प्रयोग न करें।
+7. अनिवार्य पूर्णता नियम: अपने उत्तर और प्रत्येक वाक्य को सदैव पूर्ण, सुस्पष्ट और व्याकरण सम्मत विराम दें। कभी भी वाक्य अथवा समय-सीमा को अधूरा न छोड़ें। सभी तिथियों (जैसे जुलाई 2026 – मई 2027) एवं कोष्ठकों () को सही ढंग से बंद करें।
 
 {context_text}"""
     else:
@@ -289,6 +290,7 @@ Respond according to these strict principles:
 4. Provide specific time windows or months where relevant (e.g. "Favorable window: October to December 2026").
 5. Include 1–2 practical, traditional Vedic remedies (mantra, charity, or lifestyle adjustments) if challenges exist.
 6. Avoid generic horoscopes. Keep your tone respectful, authoritative, and insightful. Never output messy raw asterisks or unformatted text.
+7. CRITICAL COMPLETION RULE: Always bring your thoughts and sentences to a complete, grammatically finalized conclusion. Never stop mid-sentence or cut off dates or words. Keep all date ranges (e.g. July 2026 – May 2027) and parentheses properly closed.
 
 {context_text}"""
 
@@ -315,7 +317,7 @@ Respond according to these strict principles:
         "contents": contents,
         "generationConfig": {
             "temperature": 0.5,
-            "maxOutputTokens": 2048,
+            "maxOutputTokens": 4096,
         }
     }
 
@@ -361,7 +363,12 @@ Respond according to these strict principles:
                         "answer": "The Jyotishi was unable to interpret this configuration right now. Please try again.",
                     }
 
-                raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                raw_text = "".join(
+                    part.get("text", "") for part in parts
+                    if isinstance(part, dict) and "text" in part
+                )
                 
                 # Clean up any stray markdown formatting artifacts
                 cleaned_text = raw_text.strip()

@@ -244,8 +244,8 @@ const TABS = [
   { id:'dasha',   label:'Dasha' },
   { id:'yoga',    label:'Yogas & Doshas' },
   { id:'reading', label:'Reading' },
-  { id:'ai',      label:'✦ AI Reading' },
   { id:'chat',    label:'💬 Ask Jyotishi' },
+  { id:'ai',      label:'✦ AI Reading' },
 ];
 
 const SIGNS_HI = {
@@ -323,7 +323,7 @@ let currentCityResults = [];
 let activeCityIndex = -1;
 
 // ── Browser Cache Configuration (1 Hour TTL) ──
-const CACHE_KEY = 'jyotish_session_v5';
+const CACHE_KEY = 'jyotish_session_v6';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour = 3,600,000 ms
 const citySearchCache = new Map();
 
@@ -333,6 +333,7 @@ try {
   localStorage.removeItem('jyotish_session_v2');
   localStorage.removeItem('jyotish_session_v3');
   localStorage.removeItem('jyotish_session_v4');
+  localStorage.removeItem('jyotish_session_v5');
   localStorage.removeItem('jyotish_session_cache');
 } catch (e) {}
 
@@ -1220,9 +1221,10 @@ function formatAIContent(rawText) {
 
   let text = rawText.replace(/\r\n/g, '\n');
 
-  // Split standalone inline bullets (e.g. "Title:** * Sub" or "text. * **Sub:**")
-  // Must require whitespace before AND after bullet marker so bold markdown (**) is never broken
-  text = text.replace(/\s+[\*\-•]\s+/g, '\n* ');
+  // Split standalone inline bullets (only explicit bullet symbol • or asterisks following punctuation)
+  // NEVER match hyphens/dashes (-) between numbers, words, or date ranges (e.g. 2026 - 2036)
+  text = text.replace(/(?<=[.:;])\s+[*•]\s+/g, '\n* ');
+  text = text.replace(/\s+•\s+/g, '\n* ');
 
   const lines = text.split('\n');
   const htmlBlocks = [];

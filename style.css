@@ -260,6 +260,7 @@ body {
   body.results-active .logo h1 { font-size:1rem; }
   body.results-active .header { padding:10px 0; }
   body.results-active #btn-new-chart { padding:6px 12px; font-size:0.76rem; gap:4px; white-space:nowrap; }
+  input, select, textarea, .chat-input { font-size:16px !important; }
 }
 
 /* ── Hindi Typography Support ── */

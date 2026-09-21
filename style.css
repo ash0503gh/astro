@@ -614,3 +614,131 @@ body[data-lang="hi"] .chat-chip {
   font-size: 0.94rem;
 }
 
+/* ── Ask Jyotishi Mobile ── */
+@media (max-width: 540px) {
+  .chat-card {
+    min-height: auto;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .chat-header-bar {
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 12px;
+  }
+
+  .chat-header-bar .card-title {
+    font-size: 0.9rem;
+  }
+
+  .chat-subtitle {
+    font-size: 0.78rem;
+  }
+
+  .chat-clear-btn {
+    align-self: flex-start;
+  }
+
+  .chat-presets-wrap {
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .chat-chips-grid {
+    gap: 6px;
+  }
+
+  .chat-chip {
+    padding: 6px 10px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .chip-sparkle {
+    font-size: 0.7rem;
+  }
+
+  .chat-messages-wrap {
+    min-height: 180px;
+    max-height: 320px;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .chat-empty-state {
+    padding: 20px 10px;
+  }
+
+  .chat-empty-icon {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+  }
+
+  .chat-empty-state h4 {
+    font-size: 0.9rem;
+  }
+
+  .chat-empty-state p {
+    font-size: 0.78rem;
+  }
+
+  .chat-avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8rem;
+  }
+
+  .chat-bubble {
+    max-width: 88%;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .chat-bubble-header {
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  .chat-bubble-body {
+    font-size: 0.82rem;
+    line-height: 1.6;
+  }
+
+  .chat-user-text {
+    font-size: 0.82rem;
+  }
+
+  .chat-input-bar {
+    gap: 8px;
+  }
+
+  .chat-input {
+    padding: 10px 14px;
+    font-size: 0.84rem;
+  }
+
+  .chat-send-btn {
+    padding: 10px 14px !important;
+  }
+
+  .chat-send-btn .btn-label,
+  .chat-send-btn span:first-child {
+    display: none;
+  }
+
+  .chat-send-btn .btn-icon {
+    margin: 0;
+  }
+
+  .chat-disclaimer {
+    font-size: 0.66rem;
+  }
+
+  .chat-transit-badge {
+    font-size: 0.62rem;
+    padding: 1px 5px;
+  }
+}
+

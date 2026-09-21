@@ -620,6 +620,7 @@ function handleReset() {
   hide($('#section-loading')); hide($('#section-error'));
   hide($('#section-results')); show($('#section-form'));
   $('#btn-new-chart').style.display='none';
+  document.body.classList.remove('results-active');
   handleLanguageChange(currentLanguage, false);
 }
 
@@ -660,6 +661,7 @@ async function handleAIGenerate() {
 function renderResults() {
   hide($('#section-loading')); hide($('#section-form'));
   show($('#section-results')); $('#btn-new-chart').style.display='flex';
+  document.body.classList.add('results-active');
   renderResultsHeader(); renderTabs(); renderTabContent();
 }
 

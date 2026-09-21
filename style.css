@@ -254,7 +254,12 @@ body {
 @media (max-width:540px) {
   .field-row { grid-template-columns:1fr; }
   .card { padding:20px; }
-  .header-inner { flex-wrap:wrap; gap:10px; }
+  .header-inner { flex-wrap:nowrap; gap:8px; }
+  body.results-active .tagline { display:none; }
+  body.results-active .logo-icon { width:34px; height:34px; font-size:1.2rem; border-radius:8px; }
+  body.results-active .logo h1 { font-size:1rem; }
+  body.results-active .header { padding:10px 0; }
+  body.results-active #btn-new-chart { padding:6px 12px; font-size:0.76rem; gap:4px; white-space:nowrap; }
 }
 
 /* ── Hindi Typography Support ── */

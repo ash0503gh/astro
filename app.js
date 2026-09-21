@@ -1098,6 +1098,7 @@ function renderChatTab() {
         ` : ''}
       </div>
 
+      ${chatHistory.length === 0 ? `
       <!-- Quick Preset Starter Questions -->
       <div class="chat-presets-wrap">
         <div class="chat-presets-label">${tr.chat_preset_title}</div>
@@ -1105,6 +1106,7 @@ function renderChatTab() {
           ${chipsHtml}
         </div>
       </div>
+      ` : ''}
 
       <!-- Messages Stream Container -->
       <div class="chat-messages-wrap" id="chat-messages-container">

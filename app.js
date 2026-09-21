@@ -321,6 +321,7 @@ let selectedCity = null;
 let cityDebounceTimer = null;
 let currentCityResults = [];
 let activeCityIndex = -1;
+let chatTabsExpanded = false;
 
 // ── Browser Cache Configuration (1 Hour TTL) ──
 const CACHE_KEY = 'jyotish_session_v8';
@@ -624,6 +625,7 @@ function handleReset() {
 
 function handleTabClick(tabId) {
   activeTab=tabId;
+  chatTabsExpanded = false;
   renderTabs();
   renderTabContent();
   if (tabId === 'chat') {
@@ -688,12 +690,42 @@ function renderResultsHeader() {
     <p class="meta-sub">${lagnaLabel}: ${ascSign} &middot; ${moonLabel}: ${moonSign} &middot; ${d.birth_info.timezone}</p>`;
 }
 
+function isChatFocused() {
+  return activeTab === 'chat' && chatHistory.length > 0 && !chatTabsExpanded;
+}
+
+function toggleChatFocus() {
+  chatTabsExpanded = !chatTabsExpanded;
+  renderTabs();
+  renderTabContent();
+  updateChatFocusState();
+}
+
+function updateChatFocusState() {
+  const header = $('#results-header');
+  if (isChatFocused()) {
+    header.style.display = 'none';
+  } else {
+    header.style.display = '';
+  }
+}
+
 function renderTabs() {
   const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
-  $('#tabs-nav').innerHTML = TABS.map(t => {
-    const label = tr.tabs?.[t.id] || t.label;
-    return `<button class="tab-btn ${t.id===activeTab?'active':''}" onclick="handleTabClick('${t.id}')">${label}</button>`;
-  }).join('');
+  if (isChatFocused()) {
+    const label = tr.tabs?.chat || '💬 Ask Jyotishi';
+    const expandLabel = currentLanguage === 'hi' ? '☰ सभी टैब' : '☰ All Tabs';
+    $('#tabs-nav').innerHTML = `
+      <div class="tabs-mini">
+        <span class="tabs-mini-label">${label}</span>
+        <button class="tabs-mini-expand" onclick="toggleChatFocus()">${expandLabel}</button>
+      </div>`;
+  } else {
+    $('#tabs-nav').innerHTML = TABS.map(t => {
+      const label = tr.tabs?.[t.id] || t.label;
+      return `<button class="tab-btn ${t.id===activeTab?'active':''}" onclick="handleTabClick('${t.id}')">${label}</button>`;
+    }).join('');
+  }
 }
 
 function renderTabContent() {
@@ -706,6 +738,11 @@ function renderTabContent() {
     case 'reading': el.innerHTML=renderReadingTab(); break;
     case 'ai':      el.innerHTML=renderAITab(); break;
     case 'chat':    el.innerHTML=renderChatTab(); break;
+  }
+  updateChatFocusState();
+  const chatCard = el.querySelector('.chat-card');
+  if (chatCard) {
+    chatCard.classList.toggle('chat-focused', isChatFocused());
   }
 }
 

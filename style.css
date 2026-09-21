@@ -614,6 +614,53 @@ body[data-lang="hi"] .chat-chip {
   font-size: 0.94rem;
 }
 
+/* ── Chat Focus Mode (mini tab strip) ── */
+.tabs-mini {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.tabs-mini-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--accent-dim);
+}
+
+.tabs-mini-expand {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all var(--transition);
+}
+
+.tabs-mini-expand:hover {
+  background: var(--bg-card);
+  border-color: var(--accent);
+  color: var(--accent-dim);
+}
+
+.chat-card.chat-focused .chat-header-bar {
+  display: none;
+}
+
+.chat-card.chat-focused .chat-messages-wrap {
+  max-height: 65vh;
+  min-height: 350px;
+}
+
+.chat-card.chat-focused {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
 /* ── Ask Jyotishi Mobile ── */
 @media (max-width: 540px) {
   .chat-card {
@@ -739,6 +786,20 @@ body[data-lang="hi"] .chat-chip {
   .chat-transit-badge {
     font-size: 0.62rem;
     padding: 1px 5px;
+  }
+
+  .chat-card.chat-focused .chat-messages-wrap {
+    max-height: 55vh;
+    min-height: 200px;
+  }
+
+  .tabs-mini-label {
+    font-size: 0.82rem;
+  }
+
+  .tabs-mini-expand {
+    font-size: 0.72rem;
+    padding: 4px 10px;
   }
 }
 

@@ -3,11 +3,13 @@ Jyotish — Vedic Birth Chart & AI Reading
 FastAPI backend serving API + static frontend (single deployment)
 """
 
+from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
 try:
@@ -28,18 +30,59 @@ BASE_DIR = Path(__file__).parent
 
 app = FastAPI(title="Jyotish API", version="1.0.0")
 
+# The frontend is served from this same origin; no other site needs browser access.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["https://astro-mze8.onrender.com"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
+
+
+# ── AI Abuse Guard (every AI request is a paid Gemini call) ──
+
+MAX_QUESTION_CHARS = 500
+MAX_HISTORY_CHARS = 2000  # per chat message; the frontend sends at most the last 6
+AI_DAILY_LIMITS = {"reading": 10, "question": 50}  # per client IP, reset at 00:00 UTC
+AI_LIMIT_MESSAGES = {
+    ("reading", "en"): "Daily limit reached for AI readings ({limit} per day). Please try again tomorrow.",
+    ("reading", "hi"): "आज की एआई फलादेश सीमा ({limit} प्रति दिन) पूरी हो गई है। कृपया कल पुनः प्रयास करें।",
+    ("question", "en"): "Daily limit reached for questions ({limit} per day). Please try again tomorrow.",
+    ("question", "hi"): "आज के प्रश्नों की सीमा ({limit} प्रति दिन) पूरी हो गई है। कृपया कल पुनः प्रयास करें।",
+}
+_ai_usage: Dict[tuple, int] = defaultdict(int)
+_ai_usage_day = ""
+
+
+def _client_ip(request: Request) -> str:
+    # Render sits behind Cloudflare, which sets CF-Connecting-IP / True-Client-IP and
+    # overwrites client-sent values. The first X-Forwarded-For entry can be spoofed.
+    return (
+        request.headers.get("cf-connecting-ip")
+        or request.headers.get("true-client-ip")
+        or (request.client.host if request.client else "unknown")
+    )
+
+
+def _check_ai_quota(request: Request, kind: str, language: Optional[str]) -> None:
+    """Count one Gemini call for this client; raise 429 once today's limit is used up."""
+    global _ai_usage_day
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if today != _ai_usage_day:
+        _ai_usage.clear()
+        _ai_usage_day = today
+    key = (_client_ip(request), kind)
+    limit = AI_DAILY_LIMITS[kind]
+    if _ai_usage[key] >= limit:
+        lang = "hi" if language == "hi" else "en"
+        raise HTTPException(status_code=429, detail=AI_LIMIT_MESSAGES[(kind, lang)].format(limit=limit))
+    _ai_usage[key] += 1
 
 
 # ── Models ──
 
 class BirthInput(BaseModel):
-    name: str
+    name: str = Field(max_length=100)
     birth_date: str
     birth_time: str
     birth_city: str
@@ -55,18 +98,14 @@ class ChatMessage(BaseModel):
 
 
 class AskJyotishiInput(BaseModel):
-    name: str
-    birth_date: Optional[str] = None
-    birth_time: Optional[str] = None
-    birth_city: Optional[str] = None
+    name: str = Field(max_length=100)
+    birth_date: str
+    birth_time: str
+    birth_city: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     timezone_offset: Optional[float] = None
-    chart: Optional[dict] = None
-    dashas: Optional[list] = None
-    yogas: Optional[list] = None
-    doshas: Optional[list] = None
-    question: str
+    question: str = Field(max_length=MAX_QUESTION_CHARS)
     history: Optional[List[ChatMessage]] = None
     language: Optional[str] = "en"
 
@@ -122,7 +161,7 @@ async def api_chart(data: BirthInput):
 
 
 @app.post("/api/ai-reading")
-async def api_ai_reading(data: BirthInput):
+async def api_ai_reading(data: BirthInput, request: Request):
     """AI-powered deep chart reading via Google Gemini."""
     try:
         chart = compute_chart(
@@ -136,44 +175,42 @@ async def api_ai_reading(data: BirthInput):
         dashas = compute_vimshottari_dasha(chart["moon_longitude"], data.birth_date)
         yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
         doshas_list = detect_doshas(chart["planets"], chart["houses"])
+        _check_ai_quota(request, "reading", data.language)
         reading = await generate_ai_reading(
             name=data.name, chart=chart,
             dashas=dashas, yogas=yogas, doshas=doshas_list,
             language=data.language or "en",
         )
         return {"reading": reading}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/ask-jyotishi")
-async def api_ask_jyotishi(data: AskJyotishiInput):
+async def api_ask_jyotishi(data: AskJyotishiInput, request: Request):
     """Interactive Astrological Q&A powered by Gemini 2.5 Flash."""
     try:
-        if not data.chart:
-            if not (data.birth_date and data.birth_time and data.birth_city):
-                raise HTTPException(status_code=400, detail="Missing chart or birth details")
-            chart = compute_chart(
-                birth_date=data.birth_date,
-                birth_time=data.birth_time,
-                birth_city=data.birth_city,
-                latitude=data.latitude,
-                longitude=data.longitude,
-                tz_offset=data.timezone_offset,
-            )
-            dashas = compute_vimshottari_dasha(chart["moon_longitude"], data.birth_date)
-            yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
-            doshas_list = detect_doshas(chart["planets"], chart["houses"])
-        else:
-            chart = data.chart
-            dashas = data.dashas if data.dashas is not None else chart.get("dashas", [])
-            yogas = data.yogas if data.yogas is not None else chart.get("yogas", [])
-            doshas_list = data.doshas if data.doshas is not None else chart.get("doshas", [])
+        # Always rebuild the chart here: client-sent chart data never reaches the prompt.
+        chart = compute_chart(
+            birth_date=data.birth_date,
+            birth_time=data.birth_time,
+            birth_city=data.birth_city,
+            latitude=data.latitude,
+            longitude=data.longitude,
+            tz_offset=data.timezone_offset,
+        )
+        dashas = compute_vimshottari_dasha(chart["moon_longitude"], data.birth_date)
+        yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
+        doshas_list = detect_doshas(chart["planets"], chart["houses"])
 
         history_list = [
-            {"role": msg.role, "content": msg.content}
-            for msg in (data.history or [])
+            {"role": msg.role, "content": msg.content[:MAX_HISTORY_CHARS]}
+            for msg in (data.history or [])[-6:]
         ]
+
+        _check_ai_quota(request, "question", data.language)
 
         result = await ask_jyotishi(
             name=data.name,

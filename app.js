@@ -445,10 +445,6 @@ async function apiAskJyotishi(question) {
     birth_city: birthInput.birthCity,
     latitude: chartData?.birth_info?.latitude,
     longitude: chartData?.birth_info?.longitude,
-    chart: chartData,
-    dashas: chartData?.dashas || [],
-    yogas: chartData?.yogas || [],
-    doshas: chartData?.doshas || [],
     question: question,
     history: recentHistory,
     language: currentLanguage,
@@ -462,7 +458,9 @@ async function apiAskJyotishi(question) {
 
   if (!res.ok) {
     const e = await res.json().catch(() => ({ detail: 'Failed to consult Jyotishi' }));
-    throw new Error(e.detail || e.error || `HTTP ${res.status}`);
+    const err = new Error(e.detail || e.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }
@@ -1158,8 +1156,9 @@ function renderChatTab() {
           type="text" 
           id="chat-input-field" 
           class="chat-input" 
-          placeholder="${tr.chat_placeholder}" 
+          placeholder="${tr.chat_placeholder}"
           autocomplete="off"
+          maxlength="500"
           ${chatLoading ? 'disabled' : ''}
           onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); handleChatSend(); }"
         />
@@ -1236,7 +1235,7 @@ async function handleChatSend(questionOverride) {
     const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
     chatHistory.push({
       role: 'assistant',
-      content: `${tr.chat_error} (${err.message})`,
+      content: err.status === 429 ? err.message : `${tr.chat_error} (${err.message})`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     });
   } finally {

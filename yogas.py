@@ -34,8 +34,8 @@ def _is_conjunct(p1: dict, p2: dict) -> bool:
 
 
 def _houses_apart(house1: int, house2: int) -> int:
-    """Calculate house distance (1-12)."""
-    return ((house2 - house1) % 12) or 12
+    """Count house2 from house1, inclusive (same house = 1, next house = 2 ... 12)."""
+    return ((house2 - house1) % 12) + 1
 
 
 def detect_yogas(planets: list, houses: list, ascendant: dict) -> list:
@@ -122,16 +122,18 @@ def detect_yogas(planets: list, houses: list, ascendant: dict) -> list:
                 })
 
     # --- Raj Yoga ---
-    # Conjunction or mutual aspect of Kendra and Trikona lords
+    # Conjunction or mutual aspect of Kendra and Trikona lords.
+    # The Lagna is both a Kendra and a Trikona, so the Trikona side uses only 5 and 9;
+    # otherwise the Lagna lord "rules both" in every chart.
     kendra_lords = set()
     trikona_lords = set()
     for h in houses:
         if h["house"] in KENDRA_HOUSES:
             kendra_lords.add(h["lord"])
-        if h["house"] in TRIKONA_HOUSES:
+        if h["house"] in (5, 9):
             trikona_lords.add(h["lord"])
 
-    raj_pairs = kendra_lords & trikona_lords  # Lords ruling both
+    raj_pairs = kendra_lords & trikona_lords  # Lords ruling both (Yogakaraka)
     for lord_name in raj_pairs:
         lord_planet = _planet_by_name(planets, lord_name)
         if lord_planet:

@@ -162,10 +162,10 @@ def _check_mangal_cancellation(planets: list, mars: dict) -> str:
             f"Mars is in {mars['dignity'].replace('_', ' ')} ({mars['sign']}), reducing dosha effects"
         )
 
-    # Jupiter aspects Mars (Jupiter in 1, 5, 7, 9 from Mars)
+    # Jupiter aspects Mars (Mars in the 5th, 7th or 9th house counted from Jupiter)
     jupiter = _planet_by_name(planets, "Jupiter")
     if jupiter:
-        dist = ((jupiter["house"] - mars["house"]) % 12) or 12
+        dist = ((mars["house"] - jupiter["house"]) % 12) + 1
         if dist in [5, 7, 9]:  # Jupiter's special aspects
             cancellations.append("Jupiter aspects Mars, providing cancellation")
 

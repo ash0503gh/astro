@@ -22,6 +22,12 @@ uvicorn main:app --reload
 
 Open `http://localhost:8000`.
 
+## Tests
+
+```bash
+python -m unittest test_app -v       # Gemini is stubbed: no API calls, no cost
+```
+
 ## Deploy to Render
 
 1. Push all files to a GitHub repo (flat, no subfolders needed)
@@ -41,6 +47,8 @@ Open `http://localhost:8000`.
 | `doshas.py` | Dosha detection (6 types with cancellations) |
 | `interpretations.py` | Rule-based chart readings |
 | `ai_reader.py` | Google Gemini API integration for deep readings |
+| `qa_engine.py` | Ask Jyotishi Q&A (Gemini) with live transits |
+| `test_app.py` | Regression tests (Gemini stubbed) |
 | `index.html` | Frontend page |
 | `style.css` | Premium dark theme |
 | `app.js` | Frontend logic (vanilla JS) |

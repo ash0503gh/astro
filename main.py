@@ -6,7 +6,6 @@ FastAPI backend serving API + static frontend (single deployment)
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -260,9 +259,13 @@ async def serve_style_css():
         }
     )
 
+@app.get("/favicon.svg")
+async def serve_favicon():
+    return FileResponse(BASE_DIR / "favicon.svg")
 
-# Mount static files LAST so API routes and explicit static routes take priority
-app.mount("/", StaticFiles(directory=BASE_DIR), name="static")
+
+# Only the files above are public. Never mount BASE_DIR as static: it would serve
+# source code, .env and .git/ from the project folder.
 
 
 # ── Helpers ──

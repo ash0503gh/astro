@@ -13,6 +13,8 @@ import httpx
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
+from ai_reader import without_thinking
+
 try:
     import swisseph as swe
 except ImportError:
@@ -333,7 +335,7 @@ Respond following these strict guidelines:
                         "Content-Type": "application/json",
                         "x-goog-api-key": api_key,
                     },
-                    json=payload,
+                    json=without_thinking(payload, model),
                 )
 
                 if response.status_code == 404:

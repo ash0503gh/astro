@@ -14,6 +14,17 @@ FALLBACK_MODELS = [DEFAULT_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
+def without_thinking(payload: dict, model: str) -> dict:
+    """Turn off Gemini 2.5 Flash "thinking" (billed at the output-token rate).
+
+    Only 2.5 Flash models accept a zero thinking budget; older models don't think.
+    """
+    if not model.startswith("gemini-2.5-flash"):
+        return payload
+    config = {**payload["generationConfig"], "thinkingConfig": {"thinkingBudget": 0}}
+    return {**payload, "generationConfig": config}
+
+
 def _format_chart_for_prompt(
     name: str,
     chart: dict,
@@ -223,7 +234,7 @@ to a specific chart combination."""
                         "Content-Type": "application/json",
                         "x-goog-api-key": api_key,
                     },
-                    json=payload,
+                    json=without_thinking(payload, model),
                 )
 
                 if response.status_code == 404:

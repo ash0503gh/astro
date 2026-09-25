@@ -161,12 +161,12 @@ def _format_context_for_jyotishi(
         f"({curr_dasha.get('antardasha_start', '')} to {curr_dasha.get('antardasha_end', '')})"
     )
 
-    # Find upcoming Antardashas
+    # Find upcoming Antardashas (not yet started; the current one is listed above)
     upcoming_antardashas = []
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for md in dashas:
         for ad in md.get("antardashas", []):
-            if ad.get("end", "") > now_str:
+            if ad.get("start", "") > now_str:
                 upcoming_antardashas.append(
                     f"{md.get('lord', '')}-{ad.get('lord', '')} Antardasha: "
                     f"from {ad.get('start', '')} to {ad.get('end', '')}"

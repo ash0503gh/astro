@@ -7,6 +7,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -111,9 +112,11 @@ class AskJyotishiInput(BaseModel):
 
 
 # ── API Endpoints ──
+# Endpoints doing blocking work (geocoding HTTP calls, chart math) are plain `def`
+# so FastAPI runs them in its threadpool instead of freezing the event loop.
 
 @app.post("/api/chart")
-async def api_chart(data: BirthInput):
+def api_chart(data: BirthInput):
     """Full Vedic birth chart with all calculations."""
     try:
         chart = compute_chart(
@@ -164,7 +167,8 @@ async def api_chart(data: BirthInput):
 async def api_ai_reading(data: BirthInput, request: Request):
     """AI-powered deep chart reading via Google Gemini."""
     try:
-        chart = compute_chart(
+        chart = await run_in_threadpool(
+            compute_chart,
             birth_date=data.birth_date,
             birth_time=data.birth_time,
             birth_city=data.birth_city,
@@ -193,7 +197,8 @@ async def api_ask_jyotishi(data: AskJyotishiInput, request: Request):
     """Interactive Astrological Q&A powered by Gemini 2.5 Flash."""
     try:
         # Always rebuild the chart here: client-sent chart data never reaches the prompt.
-        chart = compute_chart(
+        chart = await run_in_threadpool(
+            compute_chart,
             birth_date=data.birth_date,
             birth_time=data.birth_time,
             birth_city=data.birth_city,
@@ -230,7 +235,7 @@ async def api_ask_jyotishi(data: AskJyotishiInput, request: Request):
 
 
 @app.post("/api/geocode")
-async def api_geocode(data: dict):
+def api_geocode(data: dict):
     city = data.get("city", "").strip()
     if not city:
         raise HTTPException(status_code=400, detail="City required")
@@ -242,7 +247,7 @@ async def api_geocode(data: dict):
 
 
 @app.get("/api/cities")
-async def api_cities(q: str = ""):
+def api_cities(q: str = ""):
     """City autocomplete endpoint with 1-hour browser cache."""
     if not q or len(q.strip()) < 2:
         return JSONResponse(

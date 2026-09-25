@@ -5,7 +5,9 @@ with Lahiri Ayanamsa (sidereal zodiac).
 """
 
 import swisseph as swe
+import threading
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
@@ -358,49 +360,60 @@ def search_cities(query: str, limit: int = 8) -> list:
     # 2. If fewer than limit, query Open-Meteo strictly filtered to India (country_code == 'IN')
     if len(results) < limit:
         try:
-            resp = httpx.get(
-                "https://geocoding-api.open-meteo.com/v1/search",
-                params={"name": q_name, "count": 25, "language": "en", "format": "json"},
-                timeout=4.0,
-            )
-            if resp.status_code == 200:
-                items = resp.json().get("results", [])
-                for item in items:
-                    c_code = item.get("country_code", "").upper()
-                    c_country = item.get("country", "").lower()
-                    if c_code != "IN" and "india" not in c_country:
-                        continue
+            for item in _open_meteo_search(q_name):
+                c_code = item.get("country_code", "").upper()
+                c_country = item.get("country", "").lower()
+                if c_code != "IN" and "india" not in c_country:
+                    continue
 
-                    c_name = item.get("name", "")
-                    admin1 = item.get("admin1", "")
-                    parts = [c_name]
-                    if admin1 and admin1.lower() != c_name.lower():
-                        parts.append(admin1)
-                    parts.append("India")
-                    display = ", ".join(parts)
-                    lat = float(item["latitude"])
-                    lon = float(item["longitude"])
-                    key = (round(lat, 2), round(lon, 2))
-                    if key not in seen:
-                        seen.add(key)
-                        results.append({
-                            "name": c_name,
-                            "display": display,
-                            "latitude": lat,
-                            "longitude": lon,
-                        })
-                        if len(results) >= limit:
-                            break
+                c_name = item.get("name", "")
+                admin1 = item.get("admin1", "")
+                parts = [c_name]
+                if admin1 and admin1.lower() != c_name.lower():
+                    parts.append(admin1)
+                parts.append("India")
+                display = ", ".join(parts)
+                lat = float(item["latitude"])
+                lon = float(item["longitude"])
+                key = (round(lat, 2), round(lon, 2))
+                if key not in seen:
+                    seen.add(key)
+                    results.append({
+                        "name": c_name,
+                        "display": display,
+                        "latitude": lat,
+                        "longitude": lon,
+                    })
+                    if len(results) >= limit:
+                        break
         except Exception:
             pass
 
     return results
 
 
+@lru_cache(maxsize=512)
+def _open_meteo_search(name: str) -> tuple:
+    """Open-Meteo place search. Failures raise, so only good lookups get cached."""
+    resp = httpx.get(
+        "https://geocoding-api.open-meteo.com/v1/search",
+        params={"name": name, "count": 25, "language": "en", "format": "json"},
+        timeout=4.0,
+    )
+    resp.raise_for_status()
+    return tuple(resp.json().get("results") or [])
+
+
+# Building a TimezoneFinder costs ~200 ms, so share one. It reads its data files
+# with seek()+read(), so lookups from concurrent request threads take turns.
+_TZ_FINDER = TimezoneFinder()
+_TZ_LOCK = threading.Lock()
+
+
 def _get_timezone(lat: float, lon: float, dt: datetime) -> tuple:
     """Get timezone name and UTC offset for a location at a given datetime."""
-    tf = TimezoneFinder()
-    tz_name = tf.timezone_at(lat=lat, lng=lon)
+    with _TZ_LOCK:
+        tz_name = _TZ_FINDER.timezone_at(lat=lat, lng=lon)
     if not tz_name:
         tz_name = "UTC"
     tz = pytz.timezone(tz_name)

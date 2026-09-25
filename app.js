@@ -314,6 +314,9 @@ let activeTab = 'chart';
 let selectedDasha = null;
 let aiReading = null;
 let aiLoading = false;
+let aiStream = null;        // [[sectionKey, text], ...] while a reading streams in
+let aiRequestId = 0;
+let aiRenderQueued = false;
 let chatHistory = [];
 let chatLoading = false;
 let chatRequestId = 0;
@@ -412,7 +415,7 @@ async function apiChart(data) {
   return res.json();
 }
 
-async function apiAIReading(data) {
+async function apiAIReading(data, onEvent) {
   const res = await fetch('/api/ai-reading', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
@@ -429,7 +432,25 @@ async function apiAIReading(data) {
     const e = await res.json().catch(()=>({detail:'AI reading request failed'}));
     throw new Error(e.detail || e.reading?.error || `HTTP ${res.status}`);
   }
-  return res.json();
+  // Server-sent events: {"section": key} | {"text": str} | {"done": reading}
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let end;
+    while ((end = buf.indexOf('\n\n')) >= 0) {
+      const line = buf.slice(0, end);
+      buf = buf.slice(end + 2);
+      if (!line.startsWith('data: ')) continue;
+      const ev = JSON.parse(line.slice(6));
+      if (ev.done) return ev.done;
+      onEvent(ev);
+    }
+  }
+  throw new Error('AI reading stream ended early. Please try again.');
 }
 
 async function apiAskJyotishi(question) {
@@ -593,7 +614,7 @@ async function handleSubmit(e) {
   show($('#section-loading')); hide($('#section-results'));
   try {
     chartData = await apiChart(birthInput);
-    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false; chatHistory=[]; chatLoading=false; chatRequestId++;
+    activeTab='chart'; selectedDasha=null; aiReading=null; aiLoading=false; aiStream=null; aiRequestId++; chatHistory=[]; chatLoading=false; chatRequestId++;
     renderResults();
     saveSessionToCache();
   } catch(err) { showError(err.message); }
@@ -601,7 +622,7 @@ async function handleSubmit(e) {
 
 function handleReset() {
   clearSessionCache();
-  chartData=null; birthInput=null; aiReading=null; chatHistory=[]; chatLoading=false; chatRequestId++; selectedCity=null;
+  chartData=null; birthInput=null; aiReading=null; aiLoading=false; aiStream=null; aiRequestId++; chatHistory=[]; chatLoading=false; chatRequestId++; selectedCity=null;
   const statusIcon = $('#city-status-icon');
   if (statusIcon) { statusIcon.className = 'city-status-icon'; statusIcon.innerHTML = ''; }
   const hint = $('#city-hint');
@@ -644,14 +665,34 @@ function showError(msg) {
 
 async function handleAIGenerate() {
   if (!birthInput||aiLoading) return;
-  aiLoading=true; renderTabContent();
+  const reqId = ++aiRequestId;
+  aiLoading=true; aiStream=[]; renderTabContent();
   try {
-    const d = await apiAIReading(birthInput);
-    aiReading=d.reading;
+    const reading = await apiAIReading(birthInput, (ev) => {
+      if (reqId !== aiRequestId) return;
+      if (ev.section) aiStream.push([ev.section, '']);
+      else if (ev.text) {
+        if (!aiStream.length) aiStream.push(['introduction', '']);
+        aiStream[aiStream.length - 1][1] += ev.text;
+      }
+      queueAIRender();
+    });
+    if (reqId !== aiRequestId) return;
+    aiReading=reading;
     saveSessionToCache();
   }
-  catch(err) { aiReading={error:err.message}; }
-  finally { aiLoading=false; renderTabContent(); }
+  catch(err) { if (reqId === aiRequestId) aiReading={error:err.message}; }
+  finally { if (reqId === aiRequestId) { aiLoading=false; aiStream=null; renderTabContent(); } }
+}
+
+// Re-render streamed text at most once per animation frame.
+function queueAIRender() {
+  if (aiRenderQueued) return;
+  aiRenderQueued = true;
+  requestAnimationFrame(() => {
+    aiRenderQueued = false;
+    if (activeTab === 'ai' && aiLoading) renderTabContent();
+  });
 }
 
 // ── Render ──
@@ -1019,10 +1060,12 @@ function renderReadingTab() {
 function renderAITab() {
   const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
   const isHi = currentLanguage === 'hi';
-  if (aiLoading) return `<div class="card loading-box" style="padding:50px 24px">
+  if (aiLoading && !aiStream?.length) return `<div class="card loading-box" style="padding:50px 24px">
     <div class="orbit-spinner"><div class="orbit"></div><div class="orbit"></div><div class="orbit"></div></div>
     <p class="loading-title">${tr.ai_loading_title}</p>
     <p class="loading-sub">${tr.ai_loading_sub}</p></div>`;
+  if (aiLoading) return `<div class="card"><div class="card-title">${tr.ai_title}</div>${renderAISections(aiStream)}
+    <div class="typing-indicator" style="margin-top:8px"><span></span><span></span><span></span></div></div>`;
   if (!aiReading) return `<div class="card ai-prompt"><h3>${tr.ai_title}</h3>
     <p>${tr.ai_desc}</p>
     <button class="btn btn-primary" onclick="handleAIGenerate()"><span>${tr.ai_btn}</span><span class="btn-icon">→</span></button>
@@ -1035,15 +1078,20 @@ function renderAITab() {
   const sections=aiReading.sections||{};
   let content='';
   if (Object.keys(sections).length>0) {
-    content=Object.entries(sections).map(([k,t])=>{
-      if(!t||t.trim().length<10) return '';
-      const localizedTitle = tr.ai_sections?.[k] || k.replace(/_/g,' ').replace(/and/g,'&').replace(/\b\w/g,c=>c.toUpperCase());
-      return `<div class="ai-section"><h3>${localizedTitle}</h3>${formatAIContent(t)}</div>`;
-    }).join('');
+    content=renderAISections(Object.entries(sections));
   } else if (aiReading.full_text) { content=`<div class="ai-section">${formatAIContent(aiReading.full_text)}</div>`; }
   return `<div class="card"><div class="card-title">${tr.ai_title}</div>${content||`<p style="color:#8e8e9e">${isHi ? 'कोई सामग्री उपलब्ध नहीं है।' : 'No content.'}</p>`}
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e8e4de">
       <button class="btn btn-ghost" onclick="handleAIGenerate()">${tr.ai_regenerate}</button></div></div>`;
+}
+
+function renderAISections(entries) {
+  const tr = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+  return entries.map(([k,t])=>{
+    if(!t||t.trim().length<10) return '';
+    const localizedTitle = tr.ai_sections?.[k] || k.replace(/_/g,' ').replace(/and/g,'&').replace(/\b\w/g,c=>c.toUpperCase());
+    return `<div class="ai-section"><h3>${localizedTitle}</h3>${formatAIContent(t)}</div>`;
+  }).join('');
 }
 
 // ── Ask Jyotishi (Astrological Q&A) ──

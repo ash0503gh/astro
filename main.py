@@ -3,13 +3,14 @@ Jyotish — Vedic Birth Chart & AI Reading
 FastAPI backend serving API + static frontend (single deployment)
 """
 
+import json
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
@@ -24,7 +25,7 @@ from dasha import compute_vimshottari_dasha
 from yogas import detect_yogas
 from doshas import detect_doshas
 from interpretations import generate_basic_reading
-from ai_reader import generate_ai_reading
+from ai_reader import stream_ai_reading
 from qa_engine import ask_jyotishi
 
 BASE_DIR = Path(__file__).parent
@@ -165,7 +166,7 @@ def api_chart(data: BirthInput):
 
 @app.post("/api/ai-reading")
 async def api_ai_reading(data: BirthInput, request: Request):
-    """AI-powered deep chart reading via Google Gemini."""
+    """AI-powered deep chart reading via Google Gemini, streamed as server-sent events."""
     try:
         chart = await run_in_threadpool(
             compute_chart,
@@ -180,16 +181,25 @@ async def api_ai_reading(data: BirthInput, request: Request):
         yogas = detect_yogas(chart["planets"], chart["houses"], chart["ascendant"])
         doshas_list = detect_doshas(chart["planets"], chart["houses"])
         _check_ai_quota(request, "reading", data.language)
-        reading = await generate_ai_reading(
-            name=data.name, chart=chart,
-            dashas=dashas, yogas=yogas, doshas=doshas_list,
-            language=data.language or "en",
-        )
-        return {"reading": reading}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    async def events():
+        async for event in stream_ai_reading(
+            name=data.name, chart=chart,
+            dashas=dashas, yogas=yogas, doshas=doshas_list,
+            language=data.language or "en",
+        ):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    # no-cache / X-Accel-Buffering keep proxies from holding the stream back
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/ask-jyotishi")

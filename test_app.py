@@ -3,15 +3,24 @@
 Run: python -m unittest test_app -v
 """
 
+import asyncio
 import inspect
+import json
+import os
+import re
 import unittest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 import main
-from ai_reader import without_thinking
+from ai_reader import FALLBACK_MODELS, stream_ai_reading, without_thinking
+from astro_engine import compute_chart
+from dasha import compute_vimshottari_dasha
 from doshas import _check_mangal_dosha
+from qa_engine import _format_context_for_jyotishi
 from yogas import detect_yogas
 
 SIGNS = ["Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya",
@@ -41,6 +50,21 @@ def make_chart(asc_sign, house_of):
 def yoga_names(asc_sign, house_of):
     planets, houses = make_chart(asc_sign, house_of)
     return [y["name"] for y in detect_yogas(planets, houses, {})]
+
+
+def real_chart():
+    chart = compute_chart(BIRTH["birth_date"], BIRTH["birth_time"], BIRTH["birth_city"],
+                          BIRTH["latitude"], BIRTH["longitude"])
+    return chart, compute_vimshottari_dasha(chart["moon_longitude"], BIRTH["birth_date"])
+
+
+def sse(*chunks):
+    """A Gemini streamGenerateContent (alt=sse) response body."""
+    return "".join(f"data: {json.dumps(c)}\r\n\r\n" for c in chunks).encode()
+
+
+def delta(text):
+    return {"candidates": [{"content": {"parts": [{"text": text}], "role": "model"}}]}
 
 
 class YogaRules(unittest.TestCase):
@@ -78,6 +102,103 @@ class ThinkingBudget(unittest.TestCase):
         self.assertEqual(config["thinkingConfig"], {"thinkingBudget": 0})
         self.assertNotIn("thinkingConfig", without_thinking(payload, "gemini-2.0-flash")["generationConfig"])
         self.assertNotIn("thinkingConfig", payload["generationConfig"])  # input not mutated
+
+
+class ReadingStream(unittest.TestCase):
+    """stream_ai_reading against a mocked Gemini HTTP endpoint."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.chart, cls.dashas = real_chart()
+
+    def collect(self, handler):
+        real_client = httpx.AsyncClient
+
+        def client(**kwargs):
+            return real_client(transport=httpx.MockTransport(handler), **kwargs)
+
+        async def run():
+            return [e async for e in stream_ai_reading("T", self.chart, self.dashas, [], [])]
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
+                patch("ai_reader.httpx.AsyncClient", client):
+            return asyncio.run(run())
+
+    def test_streams_sections_then_final_reading(self):
+        requests = []
+
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(200, content=sse(
+                delta("Intro line\n## Personality"), delta(" & Core Nature\nWarm and "),
+                delta("caring.\n## Career & Profession\nBuilds things.")))
+
+        events = self.collect(handler)
+        self.assertEqual(events[:-1], [
+            {"text": "Intro line\n"},
+            {"section": "personality_and_core_nature"},  # held until the header line completed
+            {"text": "Warm and "},                         # body text streams mid-line
+            {"text": "caring.\n"},
+            {"section": "career_and_profession"},
+            {"text": "Builds things."},
+        ])
+        done = events[-1]["done"]
+        self.assertEqual(done["model_used"], FALLBACK_MODELS[0])
+        self.assertEqual(done["sections"], {
+            "introduction": "Intro line",
+            "personality_and_core_nature": "Warm and caring.",
+            "career_and_profession": "Builds things.",
+        })
+        request = requests[0]
+        self.assertTrue(request.url.path.endswith(f"/{FALLBACK_MODELS[0]}:streamGenerateContent"))
+        self.assertEqual(dict(request.url.params), {"alt": "sse"})  # API key only in the header
+        self.assertEqual(request.headers["x-goog-api-key"], "test-key")
+        config = json.loads(request.content)["generationConfig"]
+        self.assertEqual(config["thinkingConfig"], {"thinkingBudget": 0})
+
+    def test_falls_back_when_model_missing(self):
+        def handler(request):
+            if f"/{FALLBACK_MODELS[0]}:" in request.url.path:
+                return httpx.Response(404)
+            return httpx.Response(200, content=sse(delta("## Career & Profession\nSteady growth.")))
+
+        self.assertEqual(self.collect(handler)[-1]["done"]["model_used"], FALLBACK_MODELS[1])
+
+    def test_gemini_error_is_reported(self):
+        events = self.collect(lambda r: httpx.Response(429, json={"error": {"message": "Quota exceeded"}}))
+        self.assertEqual(events, [{"done": {"error": "Gemini API error (429): Quota exceeded", "sections": {}}}])
+
+    def test_blocked_prompt_is_reported(self):
+        events = self.collect(lambda r: httpx.Response(200, content=sse({"promptFeedback": {"blockReason": "SAFETY"}})))
+        self.assertEqual(events[-1]["done"]["error"], "AI generation blocked by safety filters: SAFETY")
+
+    def test_interrupted_stream_does_not_restart_on_another_model(self):
+        requests = []
+
+        class DroppedStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield sse(delta("Partial text\n"))
+                raise httpx.ReadError("connection dropped")
+
+        def handler(request):
+            requests.append(request)
+            return httpx.Response(200, stream=DroppedStream())
+
+        events = self.collect(handler)
+        self.assertEqual(events[0], {"text": "Partial text\n"})
+        self.assertIn("interrupted", events[-1]["done"]["error"])
+        self.assertEqual(len(requests), 1)
+
+
+class QaPrompt(unittest.TestCase):
+    def test_upcoming_periods_exclude_current_antardasha(self):
+        chart, dashas = real_chart()
+        text = _format_context_for_jyotishi("T", chart, dashas, [], [], {"planets": []})
+        upcoming = text.split("Upcoming Periods:")[1].split("REAL-TIME")[0]
+        starts = re.findall(r"from (\d{4}-\d{2}-\d{2})", upcoming)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        self.assertEqual(len(starts), 4)
+        self.assertTrue(all(start > today for start in starts), starts)
 
 
 class Api(unittest.TestCase):
@@ -121,15 +242,35 @@ class Api(unittest.TestCase):
         self.assertEqual(self.ask(headers={"CF-Connecting-IP": "2.2.2.2"}).status_code, 200)
         self.assertEqual(gemini.await_count, limit + 1)
 
-    @patch("main.generate_ai_reading", new_callable=AsyncMock, return_value={"sections": {}})
-    def test_reading_limit(self, gemini):
+    def test_reading_streams_server_sent_events(self):
+        async def fake_stream(**kwargs):
+            yield {"section": "career_and_profession"}
+            yield {"text": "करियर में उन्नति।"}
+            yield {"done": {"sections": {"career_and_profession": "करियर में उन्नति।"}}}
+
+        with patch("main.stream_ai_reading", fake_stream):
+            r = self.client.post("/api/ai-reading", json=BIRTH)
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers["content-type"].startswith("text/event-stream"))
+        events = [json.loads(block[len("data: "):]) for block in r.text.split("\n\n") if block]
+        self.assertEqual(events[0], {"section": "career_and_profession"})
+        self.assertEqual(events[-1]["done"]["sections"]["career_and_profession"], "करियर में उन्नति।")
+
+    def test_reading_limit(self):
+        calls = []
+
+        async def fake_stream(**kwargs):
+            calls.append(kwargs)
+            yield {"done": {"sections": {}}}
+
         limit = main.AI_DAILY_LIMITS["reading"]
-        for _ in range(limit):
-            self.assertEqual(self.client.post("/api/ai-reading", json=BIRTH).status_code, 200)
-        r = self.client.post("/api/ai-reading", json={**BIRTH, "language": "hi"})
+        with patch("main.stream_ai_reading", fake_stream):
+            for _ in range(limit):
+                self.assertEqual(self.client.post("/api/ai-reading", json=BIRTH).status_code, 200)
+            r = self.client.post("/api/ai-reading", json={**BIRTH, "language": "hi"})
         self.assertEqual(r.status_code, 429)
         self.assertIn("कल", r.json()["detail"])
-        self.assertEqual(gemini.await_count, limit)
+        self.assertEqual(len(calls), limit)
 
     @patch("main.ask_jyotishi", new_callable=AsyncMock, return_value={"answer": "ok"})
     def test_inputs_capped_and_client_chart_ignored(self, gemini):

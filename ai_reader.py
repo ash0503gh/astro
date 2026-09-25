@@ -3,10 +3,11 @@ AI-Powered Deep Chart Reading using Google Gemini API.
 Generates personalized, insightful interpretations of the birth chart.
 """
 
+import json
 import os
 import re
 import httpx
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -104,22 +105,28 @@ VIMSHOTTARI DASHA:
 """
 
 
-async def generate_ai_reading(
+async def stream_ai_reading(
     name: str,
     chart: dict,
     dashas: list,
     yogas: list,
     doshas: list,
     language: str = "en",
-) -> dict:
-    """Generate a deep AI reading of the birth chart using Google Gemini."""
+) -> AsyncIterator[dict]:
+    """Stream a deep AI reading of the birth chart from Google Gemini.
+
+    Yields {"section": key} when a section header arrives, {"text": str} as content
+    is written, and finally {"done": reading}: the parsed reading
+    ({"full_text", "sections", "model_used"}) or {"error", "sections"}.
+    """
 
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     if not api_key:
-        return {
+        yield {"done": {
             "error": "AI reading unavailable — GEMINI_API_KEY not configured on backend.",
             "sections": {},
-        }
+        }}
+        return
 
     chart_text = _format_chart_for_prompt(name, chart, dashas, yogas, doshas)
 
@@ -226,81 +233,162 @@ to a specific chart combination."""
 
     async with httpx.AsyncClient(timeout=90.0) as client:
         for model in models_to_try:
-            url = f"{GEMINI_BASE_URL}/{model}:generateContent?key={api_key}"
+            url = f"{GEMINI_BASE_URL}/{model}:streamGenerateContent?alt=sse"
+            chunks = []
+            block_reason = None
             try:
-                response = await client.post(
+                async with client.stream(
+                    "POST",
                     url,
                     headers={
                         "Content-Type": "application/json",
                         "x-goog-api-key": api_key,
                     },
                     json=without_thinking(payload, model),
-                )
+                ) as response:
+                    if response.status_code == 404:
+                        # Model not available in this tier/region, try next fallback
+                        last_error = f"Model '{model}' not found (404)."
+                        continue
 
-                if response.status_code == 404:
-                    # Model not available in this tier/region, try next fallback
-                    last_error = f"Model '{model}' not found (404)."
-                    continue
-
-                if response.status_code != 200:
-                    err_body = response.text
-                    try:
-                        err_json = response.json()
-                        err_body = err_json.get("error", {}).get("message", err_body)
-                    except Exception:
-                        pass
-                    return {
-                        "error": f"Gemini API error ({response.status_code}): {err_body}",
-                        "sections": {},
-                    }
-
-                data = response.json()
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    prompt_feedback = data.get("promptFeedback", {})
-                    block_reason = prompt_feedback.get("blockReason")
-                    if block_reason:
-                        return {
-                            "error": f"AI generation blocked by safety filters: {block_reason}",
+                    if response.status_code != 200:
+                        err_body = (await response.aread()).decode("utf-8", "replace")
+                        try:
+                            err_body = json.loads(err_body).get("error", {}).get("message", err_body)
+                        except Exception:
+                            pass
+                        yield {"done": {
+                            "error": f"Gemini API error ({response.status_code}): {err_body}",
                             "sections": {},
-                        }
-                    return {
-                        "error": "Gemini returned an empty response.",
-                        "sections": {},
-                    }
+                        }}
+                        return
 
-                content = candidates[0].get("content", {})
-                parts = content.get("parts", [])
-                text = "\n".join(part.get("text", "") for part in parts if "text" in part)
-
-                if not text.strip():
-                    return {
-                        "error": "Gemini generated no text content.",
-                        "sections": {},
-                    }
-
-                # Parse sections
-                sections = _parse_sections(text)
-
-                return {
-                    "full_text": text,
-                    "sections": sections,
-                    "model_used": model,
-                }
+                    splitter = _SectionSplitter()
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = json.loads(line[5:])
+                        block_reason = block_reason or data.get("promptFeedback", {}).get("blockReason")
+                        for candidate in data.get("candidates", [])[:1]:
+                            for part in candidate.get("content", {}).get("parts", []):
+                                if part.get("text"):
+                                    chunks.append(part["text"])
+                                    for event in splitter.feed(part["text"]):
+                                        yield event
+                    for event in splitter.flush():
+                        yield event
 
             except httpx.TimeoutException:
-                return {
+                yield {"done": {
                     "error": "Gemini API request timed out (60s). Please try again.",
                     "sections": {},
-                }
+                }}
+                return
             except Exception as e:
+                if chunks:  # text already reached the user; don't restart on another model
+                    yield {"done": {"error": f"AI reading was interrupted: {e}", "sections": {}}}
+                    return
                 last_error = str(e)
                 continue
 
-    return {
+            text = "".join(chunks)
+            if not text.strip():
+                error = (f"AI generation blocked by safety filters: {block_reason}"
+                         if block_reason else "Gemini generated no text content.")
+                yield {"done": {"error": error, "sections": {}}}
+                return
+
+            yield {"done": {
+                "full_text": text,
+                "sections": _parse_sections(text),
+                "model_used": model,
+            }}
+            return
+
+    yield {"done": {
         "error": f"AI reading failed: {last_error or 'Unable to contact Gemini API'}",
         "sections": {},
-    }
+    }}
+
+
+# Multilingual mapping of header keywords to canonical keys
+HEADER_KEY_MAP = [
+    (("personality", "core nature", "व्यक्तित्व", "स्वभाव"), "personality_and_core_nature"),
+    (("mind", "emotion", "मन", "भावना"), "mind_and_emotions"),
+    (("career", "profession", "कर्म", "आजीविका", "करियर", "व्यवसाय"), "career_and_profession"),
+    (("wealth", "finance", "धन", "वित्त", "आर्थिक"), "wealth_and_finances"),
+    (("relationship", "marriage", "संबंध", "विवाह", "वैवाहिक", "दांपत्य"), "relationships_and_marriage"),
+    (("health", "vitality", "स्वास्थ्य", "रोग", "आयु"), "health_and_vitality"),
+    (("spiritual", "path", "आध्यात्म", "धर्म", "मोक्ष"), "spiritual_path"),
+    (("current period", "dasha", "दशा", "महादशा", "वर्तमान"), "current_period_analysis"),
+    (("recommendation", "remed", "उपाय", "सुझाव", "समाधान"), "key_recommendations"),
+]
+
+
+def _section_key(line: str) -> Optional[str]:
+    """Canonical section key if `line` is a markdown section header, else None."""
+    match = re.match(r"^#{1,3}\s+(?:[0-9]+[\.\)]\s*)?(.+)", line)
+    if not match:
+        return None
+    header_raw = match.group(1).strip(" :*#")
+    if len(header_raw) <= 2:
+        return None
+
+    # Match against canonical mapping
+    hl = header_raw.lower()
+    for keywords, canonical in HEADER_KEY_MAP:
+        if any(kw in hl for kw in keywords):
+            return canonical
+
+    normalized_key = (
+        header_raw.lower()
+        .replace("&", "and")
+        .replace("/", "_")
+        .replace("-", "_")
+    )
+    normalized_key = re.sub(r"[^\w\s]", "", normalized_key)
+    return re.sub(r"\s+", "_", normalized_key).strip("_")
+
+
+class _SectionSplitter:
+    """Turn streamed markdown into {"section": key} / {"text": str} events.
+
+    Text passes through as soon as it arrives; only a line starting with "#" is
+    held back until complete, to tell whether it is a section header.
+    """
+
+    def __init__(self):
+        self.buf = ""     # received but not yet emitted
+        self.mode = None  # None at a line start, then "header" or "text"
+
+    def feed(self, delta: str) -> list:
+        self.buf += delta
+        events = []
+        while self.buf:
+            if self.mode is None:
+                head = self.buf.lstrip(" ")
+                if not head:
+                    break
+                self.mode = "header" if head.startswith("#") else "text"
+            newline = self.buf.find("\n")
+            if newline < 0:
+                if self.mode == "text":
+                    events.append({"text": self.buf})
+                    self.buf = ""
+                break
+            line, self.buf = self.buf[:newline], self.buf[newline + 1:]
+            events.append(self._line_event(line, "\n"))
+            self.mode = None
+        return events
+
+    def flush(self) -> list:
+        events = [self._line_event(self.buf, "")] if self.buf else []
+        self.buf, self.mode = "", None
+        return events
+
+    def _line_event(self, line: str, ending: str) -> dict:
+        key = _section_key(line) if self.mode == "header" else None
+        return {"section": key} if key is not None else {"text": line + ending}
 
 
 def _parse_sections(text: str) -> dict:
@@ -309,52 +397,16 @@ def _parse_sections(text: str) -> dict:
     current_section = "introduction"
     current_content = []
 
-    # Multilingual mapping of header keywords to canonical keys
-    HEADER_KEY_MAP = [
-        (("personality", "core nature", "व्यक्तित्व", "स्वभाव"), "personality_and_core_nature"),
-        (("mind", "emotion", "मन", "भावना"), "mind_and_emotions"),
-        (("career", "profession", "कर्म", "आजीविका", "करियर", "व्यवसाय"), "career_and_profession"),
-        (("wealth", "finance", "धन", "वित्त", "आर्थिक"), "wealth_and_finances"),
-        (("relationship", "marriage", "संबंध", "विवाह", "वैवाहिक", "दांपत्य"), "relationships_and_marriage"),
-        (("health", "vitality", "स्वास्थ्य", "रोग", "आयु"), "health_and_vitality"),
-        (("spiritual", "path", "आध्यात्म", "धर्म", "मोक्ष"), "spiritual_path"),
-        (("current period", "dasha", "दशा", "महादशा", "वर्तमान"), "current_period_analysis"),
-        (("recommendation", "remed", "उपाय", "सुझाव", "समाधान"), "key_recommendations"),
-    ]
-
     for line in text.split("\n"):
-        match = re.match(r"^#{1,3}\s+(?:[0-9]+[\.\)]\s*)?(.+)", line)
-        if match:
-            header_raw = match.group(1).strip(" :*#")
-            if len(header_raw) > 2:
-                if current_content:
-                    block = "\n".join(current_content).strip()
-                    block = re.sub(r"\s+[\*\-•]\s+", "\n* ", block)
-                    sections[current_section] = block
-
-                # Match against canonical mapping
-                found_key = None
-                hl = header_raw.lower()
-                for keywords, canonical in HEADER_KEY_MAP:
-                    if any(kw in hl for kw in keywords):
-                        found_key = canonical
-                        break
-
-                if found_key:
-                    normalized_key = found_key
-                else:
-                    normalized_key = (
-                        header_raw.lower()
-                        .replace("&", "and")
-                        .replace("/", "_")
-                        .replace("-", "_")
-                    )
-                    normalized_key = re.sub(r"[^\w\s]", "", normalized_key)
-                    normalized_key = re.sub(r"\s+", "_", normalized_key).strip("_")
-
-                current_section = normalized_key
-                current_content = []
-                continue
+        key = _section_key(line)
+        if key is not None:
+            if current_content:
+                block = "\n".join(current_content).strip()
+                block = re.sub(r"\s+[\*\-•]\s+", "\n* ", block)
+                sections[current_section] = block
+            current_section = key
+            current_content = []
+            continue
         current_content.append(line)
 
     if current_content:

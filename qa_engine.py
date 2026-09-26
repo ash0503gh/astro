@@ -10,7 +10,7 @@ Provides direct, honest, and grounded astrological answers based on:
 import os
 import re
 import httpx
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from ai_reader import without_thinking
@@ -125,6 +125,26 @@ def compute_current_transits(natal_lagna_sign_num: int, natal_moon_sign_num: int
     return transits
 
 
+def _from_today(date_str: str, today: date) -> str:
+    """Describe a YYYY-MM-DD date relative to today: "10 months ago", "in 6 months".
+
+    Spelled out because the model (thinking off) can't compare dates: knowing today
+    is Sep 2026, it still called a period that began in Nov 2025 "upcoming".
+    """
+    try:
+        days = (date.fromisoformat(date_str) - today).days
+    except (TypeError, ValueError):
+        return "unknown"
+    months = round(abs(days) / 30.44)
+    if months == 0:
+        span = "under a month"
+    elif months < 24:
+        span = f"{months} month{'s' if months > 1 else ''}"
+    else:
+        span = f"{round(months / 12)} years"
+    return f"in {span}" if days > 0 else f"{span} ago"
+
+
 def _format_context_for_jyotishi(
     name: str,
     chart: dict,
@@ -154,22 +174,29 @@ def _format_context_for_jyotishi(
     # Active & Upcoming Dashas
     from dasha import get_current_dasha
     curr_dasha = get_current_dasha(dashas)
+    today = datetime.now(timezone.utc).date()
+    now_str = today.isoformat()
+
+    def period(start, end):
+        return (f"({start} to {end}; started {_from_today(start, today)}, "
+                f"ends {_from_today(end, today)})")
+
     dasha_summary = (
         f"Current Mahadasha: {curr_dasha.get('mahadasha', 'N/A')} "
-        f"({curr_dasha.get('mahadasha_start', '')} to {curr_dasha.get('mahadasha_end', '')})\n"
-        f"Current Antardasha (running now): {curr_dasha.get('antardasha', 'N/A')} "
-        f"({curr_dasha.get('antardasha_start', '')} to {curr_dasha.get('antardasha_end', '')})"
+        f"{period(curr_dasha.get('mahadasha_start'), curr_dasha.get('mahadasha_end'))}\n"
+        f"Current Antardasha: {curr_dasha.get('antardasha', 'N/A')} "
+        f"{period(curr_dasha.get('antardasha_start'), curr_dasha.get('antardasha_end'))}"
     )
 
     # Find upcoming Antardashas (not yet started; the current one is listed above)
     upcoming_antardashas = []
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     for md in dashas:
         for ad in md.get("antardashas", []):
             if ad.get("start", "") > now_str:
                 upcoming_antardashas.append(
                     f"{md.get('lord', '')}-{ad.get('lord', '')} Antardasha: "
-                    f"from {ad.get('start', '')} to {ad.get('end', '')}"
+                    f"from {ad.get('start', '')} to {ad.get('end', '')} "
+                    f"(starts {_from_today(ad.get('start', ''), today)})"
                 )
             if len(upcoming_antardashas) >= 4:
                 break
@@ -201,8 +228,6 @@ def _format_context_for_jyotishi(
     yogas_text = ", ".join(y.get("name", "") for y in yogas) if yogas else "None"
     doshas_text = ", ".join(d.get("name", "") for d in doshas if d.get("present")) if doshas else "None"
 
-    # State today's date: without it the model assumes its training-time "now" and
-    # calls periods that already started (e.g. Nov 2025) "upcoming".
     return f"""ASTROLOGICAL DOSSIER FOR {name} (today is {now_str}):
 
 NATAL LAGNA (Ascendant):

@@ -20,7 +20,7 @@ from ai_reader import FALLBACK_MODELS, stream_ai_reading, without_thinking
 from astro_engine import compute_chart
 from dasha import compute_vimshottari_dasha
 from doshas import _check_mangal_dosha
-from qa_engine import _format_context_for_jyotishi
+from qa_engine import _format_context_for_jyotishi, _from_today
 from yogas import detect_yogas
 
 SIGNS = ["Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya",
@@ -199,9 +199,19 @@ class QaPrompt(unittest.TestCase):
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self.assertEqual(len(starts), 4)
         self.assertTrue(all(start > today for start in starts), starts)
-        # the model is told today's date and which antardasha is running
+        # past/future is spelled out, so the model never has to compare dates
         self.assertIn(f"(today is {today})", text.splitlines()[0])
-        self.assertIn("Current Antardasha (running now):", text)
+        current = next(line for line in text.splitlines() if "Current Antardasha:" in line)
+        self.assertRegex(current, r"; started (\d+ months?|under a month) ago, ends in ")
+        self.assertEqual(upcoming.count("(starts in "), 4)
+
+    def test_from_today(self):
+        today = datetime(2026, 9, 26).date()
+        cases = {"2025-11-11": "10 months ago", "2027-03-13": "in 6 months", "2014-07-13": "12 years ago",
+                 "2030-07-13": "in 4 years", "2026-10-05": "in under a month", "2026-08-20": "1 month ago",
+                 "": "unknown", None: "unknown"}
+        for when, expected in cases.items():
+            self.assertEqual(_from_today(when, today), expected, when)
 
 
 class Api(unittest.TestCase):

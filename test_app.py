@@ -199,6 +199,9 @@ class QaPrompt(unittest.TestCase):
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self.assertEqual(len(starts), 4)
         self.assertTrue(all(start > today for start in starts), starts)
+        # the model is told today's date and which antardasha is running
+        self.assertIn(f"(today is {today})", text.splitlines()[0])
+        self.assertIn("Current Antardasha (running now):", text)
 
 
 class Api(unittest.TestCase):

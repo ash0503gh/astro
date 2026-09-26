@@ -157,7 +157,7 @@ def _format_context_for_jyotishi(
     dasha_summary = (
         f"Current Mahadasha: {curr_dasha.get('mahadasha', 'N/A')} "
         f"({curr_dasha.get('mahadasha_start', '')} to {curr_dasha.get('mahadasha_end', '')})\n"
-        f"Current Antardasha: {curr_dasha.get('antardasha', 'N/A')} "
+        f"Current Antardasha (running now): {curr_dasha.get('antardasha', 'N/A')} "
         f"({curr_dasha.get('antardasha_start', '')} to {curr_dasha.get('antardasha_end', '')})"
     )
 
@@ -201,7 +201,9 @@ def _format_context_for_jyotishi(
     yogas_text = ", ".join(y.get("name", "") for y in yogas) if yogas else "None"
     doshas_text = ", ".join(d.get("name", "") for d in doshas if d.get("present")) if doshas else "None"
 
-    return f"""ASTROLOGICAL DOSSIER FOR {name}:
+    # State today's date: without it the model assumes its training-time "now" and
+    # calls periods that already started (e.g. Nov 2025) "upcoming".
+    return f"""ASTROLOGICAL DOSSIER FOR {name} (today is {now_str}):
 
 NATAL LAGNA (Ascendant):
   Sign: {asc.get('sign', '')} ({asc.get('sign_english', '')}) at {asc.get('degree_in_sign', '')}°
